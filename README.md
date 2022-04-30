@@ -29,7 +29,7 @@
 # 安装&升级
 
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/97668589/x-ui/master/install.sh)
 ```
 
 ## 手动安装&升级
