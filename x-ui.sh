@@ -484,6 +484,22 @@ ssl_cert_issue() {
     fi
 }
 
+open_ports(){
+    systemctl stop firewalld.service
+    systemctl disable firewalld.service
+    setenforce 0
+    ufw disable
+    iptables -P INPUT ACCEPT
+    iptables -P FORWARD ACCEPT
+    iptables -P OUTPUT ACCEPT
+    iptables -t nat -F
+    iptables -t mangle -F 
+    iptables -F
+    iptables -X
+    netfilter-persistent save
+    yellow "VPS中的所有网络端口已开启"
+}
+
 show_usage() {
     echo "x-ui 管理脚本使用方法: "
     echo "------------------------------------------"
@@ -530,6 +546,7 @@ show_menu() {
   ${green}(安装后赋予执行权限：chmod +x tcpx.sh)
   ${green}(执行脚本：./tcpx.sh)
   ${green}16.${plain} 一键申请SSL证书(acme申请)
+  ${GREEN}17.${PLAIN} VPS防火墙放开所有网络端口
  "
     show_status
     echo && read -p "请输入选择 [0-16]: " num
@@ -585,6 +602,9 @@ show_menu() {
         ;;
     16)
         ssl_cert_issue
+        ;;
+    17) 
+        open_ports 
         ;;
     *)
         LOGE "请输入正确的数字 [0-16]"
