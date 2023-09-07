@@ -840,7 +840,7 @@ show_menu() {
   ${green}(安装后赋予执行权限：chmod +x tcpx.sh)
   ${green}(执行脚本：./tcpx.sh)
   ${green}16.${plain} 一键申请SSL证书(acme申请)
-  ${GREEN}17.${plain} VPS防火墙放开所有网络端口
+  ${green}17.${plain} 放开VPS防火墙全部端口
   ${green}18.${plain} 配置x-ui定时任务
  "
     show_status
