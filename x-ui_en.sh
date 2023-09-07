@@ -1,1 +1,935 @@
-{"payload":{"allShortcutsEnabled":true,"fileTree":{"":{"items":[{"name":".github","path":".github","contentType":"directory"},{"name":"bin","path":"bin","contentType":"directory"},{"name":"config","path":"config","contentType":"directory"},{"name":"database","path":"database","contentType":"directory"},{"name":"logger","path":"logger","contentType":"directory"},{"name":"media","path":"media","contentType":"directory"},{"name":"util","path":"util","contentType":"directory"},{"name":"v2ui","path":"v2ui","contentType":"directory"},{"name":"web","path":"web","contentType":"directory"},{"name":"xray","path":"xray","contentType":"directory"},{"name":".gitignore","path":".gitignore","contentType":"file"},{"name":"Dockerfile","path":"Dockerfile","contentType":"file"},{"name":"LICENSE","path":"LICENSE","contentType":"file"},{"name":"README.md","path":"README.md","contentType":"file"},{"name":"README_EN.md","path":"README_EN.md","contentType":"file"},{"name":"go.mod","path":"go.mod","contentType":"file"},{"name":"go.sum","path":"go.sum","contentType":"file"},{"name":"install.sh","path":"install.sh","contentType":"file"},{"name":"install_en.sh","path":"install_en.sh","contentType":"file"},{"name":"main.go","path":"main.go","contentType":"file"},{"name":"x-ui.service","path":"x-ui.service","contentType":"file"},{"name":"x-ui.sh","path":"x-ui.sh","contentType":"file"},{"name":"x-ui_en.sh","path":"x-ui_en.sh","contentType":"file"}],"totalCount":23}},"fileTreeProcessingTime":5.007396,"foldersToFetch":[],"reducedMotionEnabled":"system","repo":{"id":469051838,"defaultBranch":"main","name":"x-ui","ownerLogin":"FranzKafkaYu","currentUserCanPush":false,"isFork":true,"isEmpty":false,"createdAt":"2022-03-12T18:36:25.000+08:00","ownerAvatar":"https://avatars.githubusercontent.com/u/38254177?v=4","public":true,"private":false,"isOrgOwned":false},"symbolsExpanded":true,"treeExpanded":true,"refInfo":{"name":"main","listCacheKey":"v0:1689613560.0","canEdit":true,"refType":"branch","currentOid":"6f885aa80d5a10aa88bb84e7f723c75c5aa399bc"},"path":"x-ui_en.sh","currentUser":{"id":56907698,"login":"97668589","userEmail":"97668589@qq.com"},"blob":{"rawLines":["#!/bin/bash","","red='\\033[0;31m'","green='\\033[0;32m'","yellow='\\033[0;33m'","plain='\\033[0m'","","#consts for log check and clear,unit:M","declare -r DEFAULT_LOG_FILE_DELETE_TRIGGER=35","","# consts for geo update","PATH_FOR_GEO_IP='/usr/local/x-ui/bin/geoip.dat'","PATH_FOR_CONFIG='/usr/local/x-ui/bin/config.json'","PATH_FOR_GEO_SITE='/usr/local/x-ui/bin/geosite.dat'","URL_FOR_GEO_IP='https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat'","URL_FOR_GEO_SITE='https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat'","","#Add some basic function here","function LOGD() {","    echo -e \"${yellow}[DEG] $* ${plain}\"","}","","function LOGE() {","    echo -e \"${red}[ERR] $* ${plain}\"","}","","function LOGI() {","    echo -e \"${green}[INF] $* ${plain}\"","}","# check root","[[ $EUID -ne 0 ]] && LOGE \"${red}fatal error:please run this script with root privilege${plain}\\n\" && exit 1","","# check os","if [[ -f /etc/redhat-release ]]; then","    release=\"centos\"","elif cat /etc/issue | grep -Eqi \"debian\"; then","    release=\"debian\"","elif cat /etc/issue | grep -Eqi \"ubuntu\"; then","    release=\"ubuntu\"","elif cat /etc/issue | grep -Eqi \"centos|red hat|redhat\"; then","    release=\"centos\"","elif cat /proc/version | grep -Eqi \"debian\"; then","    release=\"debian\"","elif cat /proc/version | grep -Eqi \"ubuntu\"; then","    release=\"ubuntu\"","elif cat /proc/version | grep -Eqi \"centos|red hat|redhat\"; then","    release=\"centos\"","else","    LOGE \"check system os failed,please contact with author!\\n\" && exit 1","fi","","os_version=\"\"","","# os version","if [[ -f /etc/os-release ]]; then","    os_version=$(awk -F'[= .\"]' '/VERSION_ID/{print $3}' /etc/os-release)","fi","if [[ -z \"$os_version\" && -f /etc/lsb-release ]]; then","    os_version=$(awk -F'[= .\"]+' '/DISTRIB_RELEASE/{print $2}' /etc/lsb-release)","fi","","if [[ x\"${release}\" == x\"centos\" ]]; then","    if [[ ${os_version} -le 6 ]]; then","        LOGE \"${red}please use CentOS 7 or higher version${plain}\\n\" && exit 1","    fi","elif [[ x\"${release}\" == x\"ubuntu\" ]]; then","    if [[ ${os_version} -lt 16 ]]; then","        LOGE \"${red}please use Ubuntu 16 or higher version${plain}\\n\" && exit 1","    fi","elif [[ x\"${release}\" == x\"debian\" ]]; then","    if [[ ${os_version} -lt 8 ]]; then","        LOGE \"${red}please use Debian 8 or higher version${plain}\\n\" && exit 1","    fi","fi","","confirm() {","    if [[ $# > 1 ]]; then","        echo && read -p \"$1 [default:$2]: \" temp","        if [[ x\"${temp}\" == x\"\" ]]; then","            temp=$2","        fi","    else","        read -p \"$1 [y/n]: \" temp","    fi","    if [[ x\"${temp}\" == x\"y\" || x\"${temp}\" == x\"Y\" ]]; then","        return 0","    else","        return 1","    fi","}","","confirm_restart() {","    confirm \"confirm to restart x-ui,xray service will be restart\" \"y\"","    if [[ $? == 0 ]]; then","        restart","    else","        show_menu","    fi","}","","before_show_menu() {","    echo && echo -n -e \"${yellow}enter to return to the control menu: ${plain}\" && read temp","    show_menu","}","","install() {","    bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install_en.sh)","    if [[ $? == 0 ]]; then","        if [[ $# == 0 ]]; then","            start","        else","            start 0","        fi","    fi","}","","update() {","    confirm \"will upgrade to the latest,continue?\" \"n\"","    if [[ $? != 0 ]]; then","        LOGE \"cancelled...\"","        if [[ $# == 0 ]]; then","            before_show_menu","        fi","        return 0","    fi","    bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install_en.sh)","    if [[ $? == 0 ]]; then","        LOGI \"upgrade finished,restart completed\"","        exit 0","    fi","}","","uninstall() {","    confirm \"sure you want to uninstall x-ui?\" \"n\"","    if [[ $? != 0 ]]; then","        if [[ $# == 0 ]]; then","            show_menu","        fi","        return 0","    fi","    systemctl stop x-ui","    systemctl disable x-ui","    rm /etc/systemd/system/x-ui.service -f","    systemctl daemon-reload","    systemctl reset-failed","    rm /etc/x-ui/ -rf","    rm /usr/local/x-ui/ -rf","","    echo \"\"","    echo -e \"uninstall x-ui succeed,you can delete this script by ${green}rm /usr/bin/x-ui -f${plain}\"","    echo \"\"","","    if [[ $# == 0 ]]; then","        before_show_menu","    fi","}","","reset_user() {","    confirm \"are you sure you want to reset the username and password to ${green}admin${plain} ?\" \"n\"","    if [[ $? != 0 ]]; then","        if [[ $# == 0 ]]; then","            show_menu","        fi","        return 0","    fi","    /usr/local/x-ui/x-ui setting -username admin -password admin","    echo -e \"your username and password are reset to ${green}admin${plain},restart x-ui to take effect\"","    confirm_restart","}","","reset_config() {","    confirm \"are you sure you want to reset all settings,user data will not be lost\" \"n\"","    if [[ $? != 0 ]]; then","        if [[ $# == 0 ]]; then","            show_menu","        fi","        return 0","    fi","    /usr/local/x-ui/x-ui setting -reset","    echo -e \"all settings are reset to default,please restart x-ui,and use default port ${green}54321${plain} to access panel\"","    confirm_restart","}","","check_config() {","    info=$(/usr/local/x-ui/x-ui setting -show true)","    if [[ $? != 0 ]]; then","        LOGE \"get current settings error,please check logs\"","        show_menu","    fi","    LOGI \"${info}\"","}","","set_port() {","    echo && echo -n -e \"please set a port[1-65535]: \" && read port","    if [[ -z \"${port}\" ]]; then","        LOGD \"cancelled...\"","        before_show_menu","    else","        /usr/local/x-ui/x-ui setting -port ${port}","        echo -e \"set port done,please restart x-ui,and use this new port ${green}${port}${plain} to access panel\"","        confirm_restart","    fi","}","","start() {","    check_status","    if [[ $? == 0 ]]; then","        echo \"\"","        LOGI \"x-ui is running,no need to start agin\"","    else","        systemctl start x-ui","        sleep 2","        check_status","        if [[ $? == 0 ]]; then","            LOGI \"start x-ui  succeed\"","        else","            LOGE \"start x-ui failed,please check logs\"","        fi","    fi","","    if [[ $# == 0 ]]; then","        before_show_menu","    fi","}","","stop() {","    check_status","    if [[ $? == 1 ]]; then","        echo \"\"","        LOGI \"x-ui is stopped,no need to stop again\"","    else","        systemctl stop x-ui","        sleep 2","        check_status","        if [[ $? == 1 ]]; then","            LOGI \"stop x-ui succeed\"","        else","            LOGE \"stop x-ui failed,please check logs\"","        fi","    fi","","    if [[ $# == 0 ]]; then","        before_show_menu","    fi","}","","restart() {","    systemctl restart x-ui","    sleep 2","    check_status","    if [[ $? == 0 ]]; then","        LOGI \"restart x-ui succeed\"","    else","        LOGE \"stop x-ui failed,please check logs\"","    fi","    if [[ $# == 0 ]]; then","        before_show_menu","    fi","}","","status() {","    systemctl status x-ui -l","    if [[ $# == 0 ]]; then","        before_show_menu","    fi","}","","enable() {","    systemctl enable x-ui","    if [[ $? == 0 ]]; then","        LOGI \"enable x-ui on system startup succeed\"","    else","        LOGE \"enable x-ui on system startup failed\"","    fi","","    if [[ $# == 0 ]]; then","        before_show_menu","    fi","}","","disable() {","    systemctl disable x-ui","    if [[ $? == 0 ]]; then","        LOGI \"disable x-ui on system startup succeed\"","    else","        LOGE \"disable x-ui on system startup failed\"","    fi","","    if [[ $# == 0 ]]; then","        before_show_menu","    fi","}","","show_log() {","    journalctl -u x-ui.service -e --no-pager -f","    if [[ $# == 0 ]]; then","        before_show_menu","    fi","}","","migrate_v2_ui() {","    /usr/local/x-ui/x-ui v2-ui","","    before_show_menu","}","","install_bbr() {","    # temporary workaround for installing bbr","    bash <(curl -L -s https://raw.githubusercontent.com/teddysun/across/master/bbr.sh)","    echo \"\"","    before_show_menu","}","","update_shell() {","    wget -O /usr/bin/x-ui -N --no-check-certificate https://github.com/FranzKafkaYu/x-ui/raw/master/x-ui_en.sh","    if [[ $? != 0 ]]; then","        echo \"\"","        LOGE \"update shell script failed,please check whether your server can access github\"","        before_show_menu","    else","        chmod +x /usr/bin/x-ui","        LOGI \"update shell script succeed\" && exit 0","    fi","}","","# 0: running, 1: not running, 2: not installed","check_status() {","    if [[ ! -f /etc/systemd/system/x-ui.service ]]; then","        return 2","    fi","    temp=$(systemctl status x-ui | grep Active | awk '{print $3}' | cut -d \"(\" -f2 | cut -d \")\" -f1)","    if [[ x\"${temp}\" == x\"running\" ]]; then","        return 0","    else","        return 1","    fi","}","","check_enabled() {","    temp=$(systemctl is-enabled x-ui)","    if [[ x\"${temp}\" == x\"enabled\" ]]; then","        return 0","    else","        return 1","    fi","}","","check_uninstall() {","    check_status","    if [[ $? != 2 ]]; then","        echo \"\"","        LOGE \"x-ui is installed already\"","        if [[ $# == 0 ]]; then","            before_show_menu","        fi","        return 1","    else","        return 0","    fi","}","","check_install() {","    check_status","    if [[ $? == 2 ]]; then","        echo \"\"","        LOGE \"please install x-ui first\"","        if [[ $# == 0 ]]; then","            before_show_menu","        fi","        return 1","    else","        return 0","    fi","}","","show_status() {","    check_status","    case $? in","    0)","        echo -e \"x-ui status: ${green}running${plain}\"","        show_enable_status","        ;;","    1)","        echo -e \"x-ui status: ${yellow}stopped${plain}\"","        show_enable_status","        ;;","    2)","        echo -e \"x-ui status: ${red}not installed${plain}\"","        ;;","    esac","    show_xray_status","}","","show_enable_status() {","    check_enabled","    if [[ $? == 0 ]]; then","        echo -e \"enable on system startup: ${green}yes${plain}\"","    else","        echo -e \"enable on system startup: ${red}no${plain}\"","    fi","}","","check_xray_status() {","    count=$(ps -ef | grep \"xray-linux\" | grep -v \"grep\" | wc -l)","    if [[ count -ne 0 ]]; then","        return 0","    else","        return 1","    fi","}","","show_xray_status() {","    check_xray_status","    if [[ $? == 0 ]]; then","        echo -e \"xray status: ${green}running${plain}\"","    else","        echo -e \"xray status: ${red}stopped${plain}\"","    fi","}","","#this will be an entrance for ssl cert issue","#here we can provide two different methods to issue cert","#first.standalone mode second.DNS API mode","ssl_cert_issue() {","    local method=\"\"","    echo -E \"\"","    LOGD \"********Usage********\"","    LOGI \"this shell script will use acme to help issue certs.\"","    LOGI \"here we provide two methods for issuing certs:\"","    LOGI \"method 1:acme standalone mode,need to keep port:80 open\"","    LOGI \"method 2:acme DNS API mode,need provide Cloudflare Global API Key\"","    LOGI \"recommend method 2 first,if it fails,you can try method 1.\"","    LOGI \"certs will be installed in /root/cert directory\"","    read -p \"please choose which method do you want,type 1 or 2\": method","    LOGI \"you choosed method:${method}\"","","    if [ \"${method}\" == \"1\" ]; then","        ssl_cert_issue_standalone","    elif [ \"${method}\" == \"2\" ]; then","        ssl_cert_issue_by_cloudflare","    else","        LOGE \"invalid input,please check it...\"","        exit 1","    fi","}","","install_acme() {","    cd ~","    LOGI \"install acme...\"","    curl https://get.acme.sh | sh","    if [ $? -ne 0 ]; then","        LOGE \"install acme failed\"","        return 1","    else","        LOGI \"install acme succeed\"","    fi","    return 0","}","","#method for standalone mode","ssl_cert_issue_standalone() {","    #check for acme.sh first","    if ! command -v ~/.acme.sh/acme.sh &>/dev/null; then","        echo \"acme.sh could not be found. we will install it\"","        install_acme","        if [ $? -ne 0 ]; then","            LOGE \"install acme failed, please check logs\"","            exit 1","        fi","    fi","    #install socat second","    if [[ x\"${release}\" == x\"centos\" ]]; then","        yum install socat -y","    else","        apt install socat -y","    fi","    if [ $? -ne 0 ]; then","        LOGE \"install socat failed, please check logs\"","        exit 1","    else","        LOGI \"install socat succeed...\"","    fi","    #creat a directory for install cert","    certPath=/root/cert","    if [ ! -d \"$certPath\" ]; then","        mkdir $certPath","    fi","    #get the domain here,and we need verify it","    local domain=\"\"","    read -p \"please input your domain:\" domain","    LOGD \"your domain is:${domain},check it...\"","    #here we need to judge whether there exists cert already","    local currentCert=$(~/.acme.sh/acme.sh --list | grep ${domain} | wc -l)","    if [ ${currentCert} -ne 0 ]; then","        local certInfo=$(~/.acme.sh/acme.sh --list)","        LOGE \"system already have certs here,can not issue again,current certs details:\"","        LOGI \"$certInfo\"","        exit 1","    else","        LOGI \"your domain is ready for issuing cert now...\"","    fi","    #get needed port here","    local WebPort=80","    read -p \"please choose which port do you use,default will be 80 port:\" WebPort","    if [[ ${WebPort} -gt 65535 || ${WebPort} -lt 1 ]]; then","        LOGE \"your input ${WebPort} is invalid,will use default port\"","    fi","    LOGI \"will use port:${WebPort} to issue certs,please make sure this port is open...\"","    #NOTE:This should be handled by user","    #open the port and kill the occupied progress","    ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt","    ~/.acme.sh/acme.sh --issue -d ${domain} --standalone --httpport ${WebPort}","    if [ $? -ne 0 ]; then","        LOGE \"issue certs failed,please check logs\"","        rm -rf ~/.acme.sh/${domain}","        exit 1","    else","        LOGE \"issue certs succeed,installing certs...\"","    fi","    #install cert","    ~/.acme.sh/acme.sh --installcert -d ${domain} --ca-file /root/cert/ca.cer \\","        --cert-file /root/cert/${domain}.cer --key-file /root/cert/${domain}.key \\","        --fullchain-file /root/cert/fullchain.cer","","    if [ $? -ne 0 ]; then","        LOGE \"install certs failed,exit\"","        rm -rf ~/.acme.sh/${domain}","        exit 1","    else","        LOGI \"install certs succeed,enable auto renew...\"","    fi","    ~/.acme.sh/acme.sh --upgrade --auto-upgrade","    if [ $? -ne 0 ]; then","        LOGE \"auto renew failed,certs details:\"","        ls -lah cert","        chmod 755 $certPath","        exit 1","    else","        LOGI \"auto renew succeed,certs details:\"","        ls -lah cert","        chmod 755 $certPath","    fi","","}","","#method for DNS API mode","ssl_cert_issue_by_cloudflare() {","    echo -E \"\"","    LOGD \"******Preconditions******\"","    LOGI \"1.need Cloudflare account associated email\"","    LOGI \"2.need Cloudflare Global API Key\"","    LOGI \"3.your domain use Cloudflare as resolver\"","    confirm \"I have confirmed all these info above[y/n]\" \"y\"","    if [ $? -eq 0 ]; then","        install_acme","        if [ $? -ne 0 ]; then","            LOGE \"install acme failed,please check logs\"","            exit 1","        fi","        CF_Domain=\"\"","        CF_GlobalKey=\"\"","        CF_AccountEmail=\"\"","        certPath=/root/cert","        if [ ! -d \"$certPath\" ]; then","            mkdir $certPath","        fi","        LOGD \"please input your domain:\"","        read -p \"Input your domain here:\" CF_Domain","        LOGD \"your domain is:${CF_Domain},check it...\"","        #here we need to judge whether there exists cert already","        local currentCert=$(~/.acme.sh/acme.sh --list | grep ${CF_Domain} | wc -l)","        if [ ${currentCert} -ne 0 ]; then","            local certInfo=$(~/.acme.sh/acme.sh --list)","            LOGE \"system already have certs here,can not issue again,current certs details:\"","            LOGI \"$certInfo\"","            exit 1","        else","            LOGI \"your domain is ready for issuing cert now...\"","        fi","        LOGD \"please inout your cloudflare global API key:\"","        read -p \"Input your key here:\" CF_GlobalKey","        LOGD \"your cloudflare global API key is:${CF_GlobalKey}\"","        LOGD \"please input your cloudflare account email:\"","        read -p \"Input your email here:\" CF_AccountEmail","        LOGD \"your cloudflare account email:${CF_AccountEmail}\"","        ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt","        if [ $? -ne 0 ]; then","            LOGE \"change the default CA to Lets'Encrypt failed,exit\"","            exit 1","        fi","        export CF_Key=\"${CF_GlobalKey}\"","        export CF_Email=${CF_AccountEmail}","        ~/.acme.sh/acme.sh --issue --dns dns_cf -d ${CF_Domain} -d *.${CF_Domain} --log","        if [ $? -ne 0 ]; then","            LOGE \"issue cert failed,exit\"","            rm -rf ~/.acme.sh/${CF_Domain}","            exit 1","        else","            LOGI \"issue cert succeed,installing...\"","        fi","        ~/.acme.sh/acme.sh --installcert -d ${CF_Domain} -d *.${CF_Domain} --ca-file /root/cert/ca.cer \\","            --cert-file /root/cert/${CF_Domain}.cer --key-file /root/cert/${CF_Domain}.key \\","            --fullchain-file /root/cert/fullchain.cer","        if [ $? -ne 0 ]; then","            LOGE \"install cert failed,exit\"","            rm -rf ~/.acme.sh/${CF_Domain}","            exit 1","        else","            LOGI \"install cert succeed,enable auto renew...\"","        fi","        ~/.acme.sh/acme.sh --upgrade --auto-upgrade","        if [ $? -ne 0 ]; then","            LOGE \"enable auto renew failed,exit\"","            ls -lah cert","            chmod 755 $certPath","            exit 1","        else","            LOGI \"enable auto renew succeed,cert details:\"","            ls -lah cert","            chmod 755 $certPath","        fi","    else","        show_menu","    fi","}","","#add for cron jobs,including sync geo data,check logs and restart x-ui","cron_jobs() {","    clear","    echo -e \"","  ${green}x-ui cron jobs${plain}","  ${green}0.${plain}  return main menu","  ${green}1.${plain}  enable automatically update geo data","  ${green}2.${plain}  disable automatically update geo data ","  ${green}3.${plain}  enable automatically clear xray log","  ${green}4.${plain}  disable automatically clear xray log","  \"","    echo && read -p \"plz input your choice [0-4]: \" num","    case \"${num}\" in","    0)","        show_menu","        ;;","    1)","        enable_auto_update_geo","        ;;","    2)","        disable_auto_update_geo","        ;;","    3)","        enable_auto_clear_log","        ;;","    4)","        disable_auto_clear_log","        ;;","    *)","        LOGE \"plz input a valid choice [0-4]\"","        ;;","    esac","}","","#update geo data","update_geo() {","    #back up first","    mv ${PATH_FOR_GEO_IP} ${PATH_FOR_GEO_IP}.bak","    #update data","    curl -s -L -o ${PATH_FOR_GEO_IP} ${URL_FOR_GEO_IP}","    if [[ $? -ne 0 ]]; then","        echo \"update geoip.dat failed\"","        mv ${PATH_FOR_GEO_IP}.bak ${PATH_FOR_GEO_IP}","    else","        echo \"update geoip.dat succeed\"","        rm -f ${PATH_FOR_GEO_IP}.bak","    fi","    mv ${PATH_FOR_GEO_SITE} ${PATH_FOR_GEO_SITE}.bak","    curl -s -L -o ${PATH_FOR_GEO_SITE} ${URL_FOR_GEO_SITE}","    if [[ $? -ne 0 ]]; then","        echo \"update geosite.dat failed\"","        mv ${PATH_FOR_GEO_SITE}.bak ${PATH_FOR_GEO_SITE}","    else","        echo \"update geosite.dat succeed\"","        rm -f ${PATH_FOR_GEO_SITE}.bak","    fi","    #restart x-ui","    systemctl restart x-ui","}","","enable_auto_update_geo() {","    LOGI \"enable automatically update geo data...\"","    crontab -l >/tmp/crontabTask.tmp","    echo \"00 4 */2 * * x-ui geo > /dev/null\" >>/tmp/crontabTask.tmp","    crontab /tmp/crontabTask.tmp","    rm /tmp/crontabTask.tmp","    LOGI \"enable automatically update geo data succeed\"","}","","disable_auto_update_geo() {","    crontab -l | grep -v \"x-ui geo\" | crontab -","    if [[ $? -ne 0 ]]; then","        LOGI \"cancel x-ui automatically update geo data failed\"","    else","        LOGI \"cancel x-ui automatically update geo data succeed\"","    fi","}","","#clear xray log,need enable log in config template","#here we need input an absolute path for log","clear_log() {","    LOGI \"clear xray logs...\"","    local filePath=''","    if [[ $# -gt 0 ]]; then","        filePath=$1","    else","        LOGE \"invalid file path,will exit\"","        exit 1","    fi","    LOGI \"log file:${filePath}\"","    if [[ ! -f ${filePath} ]]; then","        LOGE \"clear xray log failed,${filePath} didn't exist,plz check it\"","        exit 1","    fi","    fileSize=$(ls -la ${filePath} --block-size=M | awk '{print $5}' | awk -F 'M' '{print$1}')","    if [[ ${fileSize} -gt ${DEFAULT_LOG_FILE_DELETE_TRIGGER} ]]; then","        rm $1","        if [[ $? -ne 0 ]]; then","            LOGE \"clear xray log :${filePath} failed\"","        else","            LOGI \"clear xray log :${filePath} succeed\"","            systemctl restart x-ui","        fi","    else","        LOGI \"current size of xray log is:${fileSize}M,smaller that ${DEFAULT_LOG_FILE_DELETE_TRIGGER}M,won't clear\"","    fi","}","","#enable auto delete log，need file path as","enable_auto_clear_log() {","    LOGI \"enable automatically clear xray logs...\"","    local accessfilePath=''","    local errorfilePath=''","    accessfilePath=$(cat ${PATH_FOR_CONFIG} | jq .log.access | tr -d '\"')","    errorfilePath=$(cat ${PATH_FOR_CONFIG} | jq .log.error | tr -d '\"')","    if [[ ! -n ${accessfilePath} && ! -n ${errorfilePath} ]]; then","        LOGI \"current configuration didn't set valid logs,will exited\"","        exit 1","    fi","    if [[ -f ${accessfilePath} ]]; then","        crontab -l >/tmp/crontabTask.tmp","        echo \"30 4 */2 * * x-ui clear ${accessfilePath} > /dev/null\" >>/tmp/crontabTask.tmp","        crontab /tmp/crontabTask.tmp","        rm /tmp/crontabTask.tmp","        LOGI \"enable automatically clear xray log:${accessfilePath} succeed\"","    else","        LOGE \"accesslog didn't existed,won't automatically clear it\"","    fi","","    if [[ -f ${errorfilePath} ]]; then","        crontab -l >/tmp/crontabTask.tmp","        echo \"30 4 */2 * * x-ui clear ${errorfilePath} > /dev/null\" >>/tmp/crontabTask.tmp","        crontab /tmp/crontabTask.tmp","        rm /tmp/crontabTask.tmp","        LOGI \"enable automatically clear xray log:${errorfilePath} succeed\"","    else","        LOGE \"errorlog didn't existed,won't automatically clear it\"","    fi","}","","#disable auto dlete log","disable_auto_clear_log() {","    crontab -l | grep -v \"x-ui clear\" | crontab -","    if [[ $? -ne 0 ]]; then","        LOGI \"cancel  automatically clear xray logs failed\"","    else","        LOGI \"cancel  automatically clear xray logs succeed\"","    fi","}","","show_usage() {","    echo \"x-ui control menu usages: \"","    echo \"------------------------------------------\"","    echo -e \"x-ui              - Enter control menu\"","    echo -e \"x-ui start        - Start x-ui \"","    echo -e \"x-ui stop         - Stop  x-ui \"","    echo -e \"x-ui restart      - Restart x-ui \"","    echo -e \"x-ui status       - Show x-ui status\"","    echo -e \"x-ui enable       - Enable x-ui on system startup\"","    echo -e \"x-ui disable      - Disable x-ui on system startup\"","    echo -e \"x-ui log          - Check x-ui logs\"","    echo -e \"x-ui update       - Update x-ui \"","    echo -e \"x-ui install      - Install x-ui \"","    echo -e \"x-ui uninstall    - Uninstall x-ui \"","    echo \"x-ui geo             - Update x-ui geo \"","    echo \"x-ui cron            - Cron x-ui jobs\"","    echo \"------------------------------------------\"","}","","show_menu() {","    echo -e \"","  ${green}x-ui control menu${plain}","  ${green}0.${plain} exit","————————————————","  ${green}1.${plain} install   x-ui","  ${green}2.${plain} update    x-ui","  ${green}3.${plain} uninstall x-ui","————————————————","  ${green}4.${plain} reset username","  ${green}5.${plain} reset panel","  ${green}6.${plain} reset panel port","  ${green}7.${plain} check panel info","————————————————","  ${green}8.${plain} start x-ui","  ${green}9.${plain} stop  x-ui","  ${green}10.${plain} restart x-ui","  ${green}11.${plain} check x-ui status","  ${green}12.${plain} check x-ui logs","————————————————","  ${green}13.${plain} enable  x-ui on system startup","  ${green}14.${plain} disable x-ui on system startup","————————————————","  ${green}15.${plain} enable bbr ","  ${green}16.${plain} issuse certs","  ${green}17.${plain} x-ui cron jobs"," \"","    show_status","    echo && read -p \"please input a legal number[0-16],input 7 for checking login info:\" num","","    case \"${num}\" in","    0)","        exit 0","        ;;","    1)","        check_uninstall && install","        ;;","    2)","        check_install && update","        ;;","    3)","        check_install && uninstall","        ;;","    4)","        check_install && reset_user","        ;;","    5)","        check_install && reset_config","        ;;","    6)","        check_install && set_port","        ;;","    7)","        check_install && check_config","        ;;","    8)","        check_install && start","        ;;","    9)","        check_install && stop","        ;;","    10)","        check_install && restart","        ;;","    11)","        check_install && status","        ;;","    12)","        check_install && show_log","        ;;","    13)","        check_install && enable","        ;;","    14)","        check_install && disable","        ;;","    15)","        install_bbr","        ;;","    16)","        ssl_cert_issue","        ;;","    17)","        check_install && cron_jobs","        ;;","    *)","        LOGE \"please input a legal number[0-17],input 7 for checking login info\"","        ;;","    esac","}","","if [[ $# > 0 ]]; then","    case $1 in","    \"start\")","        check_install 0 && start 0","        ;;","    \"stop\")","        check_install 0 && stop 0","        ;;","    \"restart\")","        check_install 0 && restart 0","        ;;","    \"status\")","        check_install 0 && status 0","        ;;","    \"enable\")","        check_install 0 && enable 0","        ;;","    \"disable\")","        check_install 0 && disable 0","        ;;","    \"log\")","        check_install 0 && show_log 0","        ;;","    \"v2-ui\")","        check_install 0 && migrate_v2_ui 0","        ;;","    \"update\")","        check_install 0 && update 0","        ;;","    \"install\")","        check_uninstall 0 && install 0","        ;;","    \"uninstall\")","        check_install 0 && uninstall 0","        ;;","    \"geo\")","        check_install 0 && update_geo","        ;;","    \"clear\")","        check_install 0 && clear_log $2","        ;;","    \"cron\")","        check_install && cron_jobs","        ;;","    *) show_usage ;;","    esac","else","    show_menu","fi"],"stylingDirectives":[[{"start":0,"end":11,"cssClass":"pl-c"},{"start":0,"end":2,"cssClass":"pl-c"}],[],[{"start":4,"end":16,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":15,"end":16,"cssClass":"pl-pds"}],[{"start":6,"end":18,"cssClass":"pl-s"},{"start":6,"end":7,"cssClass":"pl-pds"},{"start":17,"end":18,"cssClass":"pl-pds"}],[{"start":7,"end":19,"cssClass":"pl-s"},{"start":7,"end":8,"cssClass":"pl-pds"},{"start":18,"end":19,"cssClass":"pl-pds"}],[{"start":6,"end":15,"cssClass":"pl-s"},{"start":6,"end":7,"cssClass":"pl-pds"},{"start":14,"end":15,"cssClass":"pl-pds"}],[],[{"start":0,"end":38,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":7,"cssClass":"pl-k"}],[],[{"start":0,"end":23,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":16,"end":47,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":46,"end":47,"cssClass":"pl-pds"}],[{"start":16,"end":49,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":48,"end":49,"cssClass":"pl-pds"}],[{"start":18,"end":51,"cssClass":"pl-s"},{"start":18,"end":19,"cssClass":"pl-pds"},{"start":50,"end":51,"cssClass":"pl-pds"}],[{"start":15,"end":99,"cssClass":"pl-s"},{"start":15,"end":16,"cssClass":"pl-pds"},{"start":98,"end":99,"cssClass":"pl-pds"}],[{"start":17,"end":103,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":102,"end":103,"cssClass":"pl-pds"}],[],[{"start":0,"end":29,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":8,"cssClass":"pl-k"},{"start":9,"end":15,"cssClass":"pl-en"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":40,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":13,"end":22,"cssClass":"pl-smi"},{"start":28,"end":30,"cssClass":"pl-smi"},{"start":31,"end":39,"cssClass":"pl-smi"},{"start":39,"end":40,"cssClass":"pl-pds"}],[],[],[{"start":0,"end":8,"cssClass":"pl-k"},{"start":9,"end":15,"cssClass":"pl-en"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":37,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":13,"end":19,"cssClass":"pl-smi"},{"start":25,"end":27,"cssClass":"pl-smi"},{"start":28,"end":36,"cssClass":"pl-smi"},{"start":36,"end":37,"cssClass":"pl-pds"}],[],[],[{"start":0,"end":8,"cssClass":"pl-k"},{"start":9,"end":15,"cssClass":"pl-en"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":39,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":13,"end":21,"cssClass":"pl-smi"},{"start":27,"end":29,"cssClass":"pl-smi"},{"start":30,"end":38,"cssClass":"pl-smi"},{"start":38,"end":39,"cssClass":"pl-pds"}],[],[{"start":0,"end":12,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":3,"end":8,"cssClass":"pl-smi"},{"start":9,"end":12,"cssClass":"pl-k"},{"start":18,"end":20,"cssClass":"pl-k"},{"start":26,"end":98,"cssClass":"pl-s"},{"start":26,"end":27,"cssClass":"pl-pds"},{"start":27,"end":33,"cssClass":"pl-smi"},{"start":87,"end":95,"cssClass":"pl-smi"},{"start":97,"end":98,"cssClass":"pl-pds"},{"start":99,"end":101,"cssClass":"pl-k"},{"start":102,"end":106,"cssClass":"pl-c1"}],[],[{"start":0,"end":10,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":2,"cssClass":"pl-k"},{"start":6,"end":8,"cssClass":"pl-k"},{"start":31,"end":32,"cssClass":"pl-k"},{"start":33,"end":37,"cssClass":"pl-k"}],[{"start":12,"end":20,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":19,"end":20,"cssClass":"pl-pds"}],[{"start":0,"end":4,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":32,"end":40,"cssClass":"pl-s"},{"start":32,"end":33,"cssClass":"pl-pds"},{"start":39,"end":40,"cssClass":"pl-pds"},{"start":40,"end":41,"cssClass":"pl-k"},{"start":42,"end":46,"cssClass":"pl-k"}],[{"start":12,"end":20,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":19,"end":20,"cssClass":"pl-pds"}],[{"start":0,"end":4,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":32,"end":40,"cssClass":"pl-s"},{"start":32,"end":33,"cssClass":"pl-pds"},{"start":39,"end":40,"cssClass":"pl-pds"},{"start":40,"end":41,"cssClass":"pl-k"},{"start":42,"end":46,"cssClass":"pl-k"}],[{"start":12,"end":20,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":19,"end":20,"cssClass":"pl-pds"}],[{"start":0,"end":4,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":32,"end":55,"cssClass":"pl-s"},{"start":32,"end":33,"cssClass":"pl-pds"},{"start":54,"end":55,"cssClass":"pl-pds"},{"start":55,"end":56,"cssClass":"pl-k"},{"start":57,"end":61,"cssClass":"pl-k"}],[{"start":12,"end":20,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":19,"end":20,"cssClass":"pl-pds"}],[{"start":0,"end":4,"cssClass":"pl-k"},{"start":23,"end":24,"cssClass":"pl-k"},{"start":35,"end":43,"cssClass":"pl-s"},{"start":35,"end":36,"cssClass":"pl-pds"},{"start":42,"end":43,"cssClass":"pl-pds"},{"start":43,"end":44,"cssClass":"pl-k"},{"start":45,"end":49,"cssClass":"pl-k"}],[{"start":12,"end":20,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":19,"end":20,"cssClass":"pl-pds"}],[{"start":0,"end":4,"cssClass":"pl-k"},{"start":23,"end":24,"cssClass":"pl-k"},{"start":35,"end":43,"cssClass":"pl-s"},{"start":35,"end":36,"cssClass":"pl-pds"},{"start":42,"end":43,"cssClass":"pl-pds"},{"start":43,"end":44,"cssClass":"pl-k"},{"start":45,"end":49,"cssClass":"pl-k"}],[{"start":12,"end":20,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":19,"end":20,"cssClass":"pl-pds"}],[{"start":0,"end":4,"cssClass":"pl-k"},{"start":23,"end":24,"cssClass":"pl-k"},{"start":35,"end":58,"cssClass":"pl-s"},{"start":35,"end":36,"cssClass":"pl-pds"},{"start":57,"end":58,"cssClass":"pl-pds"},{"start":58,"end":59,"cssClass":"pl-k"},{"start":60,"end":64,"cssClass":"pl-k"}],[{"start":12,"end":20,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":19,"end":20,"cssClass":"pl-pds"}],[{"start":0,"end":4,"cssClass":"pl-k"}],[{"start":9,"end":63,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":62,"end":63,"cssClass":"pl-pds"},{"start":64,"end":66,"cssClass":"pl-k"},{"start":67,"end":71,"cssClass":"pl-c1"}],[{"start":0,"end":2,"cssClass":"pl-k"}],[],[{"start":11,"end":13,"cssClass":"pl-s"},{"start":11,"end":12,"cssClass":"pl-pds"},{"start":12,"end":13,"cssClass":"pl-pds"}],[],[{"start":0,"end":12,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":2,"cssClass":"pl-k"},{"start":6,"end":8,"cssClass":"pl-k"},{"start":27,"end":28,"cssClass":"pl-k"},{"start":29,"end":33,"cssClass":"pl-k"}],[{"start":15,"end":73,"cssClass":"pl-s"},{"start":15,"end":17,"cssClass":"pl-pds"},{"start":23,"end":31,"cssClass":"pl-s"},{"start":23,"end":24,"cssClass":"pl-pds"},{"start":30,"end":31,"cssClass":"pl-pds"},{"start":32,"end":56,"cssClass":"pl-s"},{"start":32,"end":33,"cssClass":"pl-pds"},{"start":55,"end":56,"cssClass":"pl-pds"},{"start":72,"end":73,"cssClass":"pl-pds"}],[{"start":0,"end":2,"cssClass":"pl-k"}],[{"start":0,"end":2,"cssClass":"pl-k"},{"start":6,"end":8,"cssClass":"pl-k"},{"start":9,"end":22,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":10,"end":21,"cssClass":"pl-smi"},{"start":21,"end":22,"cssClass":"pl-pds"},{"start":23,"end":25,"cssClass":"pl-k"},{"start":26,"end":28,"cssClass":"pl-k"},{"start":48,"end":49,"cssClass":"pl-k"},{"start":50,"end":54,"cssClass":"pl-k"}],[{"start":15,"end":80,"cssClass":"pl-s"},{"start":15,"end":17,"cssClass":"pl-pds"},{"start":23,"end":32,"cssClass":"pl-s"},{"start":23,"end":24,"cssClass":"pl-pds"},{"start":31,"end":32,"cssClass":"pl-pds"},{"start":33,"end":62,"cssClass":"pl-s"},{"start":33,"end":34,"cssClass":"pl-pds"},{"start":61,"end":62,"cssClass":"pl-pds"},{"start":79,"end":80,"cssClass":"pl-pds"}],[{"start":0,"end":2,"cssClass":"pl-k"}],[],[{"start":0,"end":2,"cssClass":"pl-k"},{"start":7,"end":19,"cssClass":"pl-s"},{"start":7,"end":8,"cssClass":"pl-pds"},{"start":8,"end":18,"cssClass":"pl-smi"},{"start":18,"end":19,"cssClass":"pl-pds"},{"start":20,"end":22,"cssClass":"pl-k"},{"start":24,"end":32,"cssClass":"pl-s"},{"start":24,"end":25,"cssClass":"pl-pds"},{"start":31,"end":32,"cssClass":"pl-pds"},{"start":35,"end":36,"cssClass":"pl-k"},{"start":37,"end":41,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":23,"cssClass":"pl-smi"},{"start":24,"end":27,"cssClass":"pl-k"},{"start":32,"end":33,"cssClass":"pl-k"},{"start":34,"end":38,"cssClass":"pl-k"}],[{"start":13,"end":68,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":14,"end":20,"cssClass":"pl-smi"},{"start":57,"end":65,"cssClass":"pl-smi"},{"start":67,"end":68,"cssClass":"pl-pds"},{"start":69,"end":71,"cssClass":"pl-k"},{"start":72,"end":76,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":0,"end":4,"cssClass":"pl-k"},{"start":9,"end":21,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":10,"end":20,"cssClass":"pl-smi"},{"start":20,"end":21,"cssClass":"pl-pds"},{"start":22,"end":24,"cssClass":"pl-k"},{"start":26,"end":34,"cssClass":"pl-s"},{"start":26,"end":27,"cssClass":"pl-pds"},{"start":33,"end":34,"cssClass":"pl-pds"},{"start":37,"end":38,"cssClass":"pl-k"},{"start":39,"end":43,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":23,"cssClass":"pl-smi"},{"start":24,"end":27,"cssClass":"pl-k"},{"start":33,"end":34,"cssClass":"pl-k"},{"start":35,"end":39,"cssClass":"pl-k"}],[{"start":13,"end":69,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":14,"end":20,"cssClass":"pl-smi"},{"start":58,"end":66,"cssClass":"pl-smi"},{"start":68,"end":69,"cssClass":"pl-pds"},{"start":70,"end":72,"cssClass":"pl-k"},{"start":73,"end":77,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":0,"end":4,"cssClass":"pl-k"},{"start":9,"end":21,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":10,"end":20,"cssClass":"pl-smi"},{"start":20,"end":21,"cssClass":"pl-pds"},{"start":22,"end":24,"cssClass":"pl-k"},{"start":26,"end":34,"cssClass":"pl-s"},{"start":26,"end":27,"cssClass":"pl-pds"},{"start":33,"end":34,"cssClass":"pl-pds"},{"start":37,"end":38,"cssClass":"pl-k"},{"start":39,"end":43,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":23,"cssClass":"pl-smi"},{"start":24,"end":27,"cssClass":"pl-k"},{"start":32,"end":33,"cssClass":"pl-k"},{"start":34,"end":38,"cssClass":"pl-k"}],[{"start":13,"end":68,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":14,"end":20,"cssClass":"pl-smi"},{"start":57,"end":65,"cssClass":"pl-smi"},{"start":67,"end":68,"cssClass":"pl-pds"},{"start":69,"end":71,"cssClass":"pl-k"},{"start":72,"end":76,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":0,"end":2,"cssClass":"pl-k"}],[],[{"start":0,"end":7,"cssClass":"pl-en"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":14,"cssClass":"pl-k"},{"start":19,"end":20,"cssClass":"pl-k"},{"start":21,"end":25,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":16,"end":20,"cssClass":"pl-c1"},{"start":24,"end":43,"cssClass":"pl-s"},{"start":24,"end":25,"cssClass":"pl-pds"},{"start":25,"end":27,"cssClass":"pl-smi"},{"start":37,"end":39,"cssClass":"pl-smi"},{"start":42,"end":43,"cssClass":"pl-pds"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":15,"end":24,"cssClass":"pl-s"},{"start":15,"end":16,"cssClass":"pl-pds"},{"start":16,"end":23,"cssClass":"pl-smi"},{"start":23,"end":24,"cssClass":"pl-pds"},{"start":25,"end":27,"cssClass":"pl-k"},{"start":29,"end":31,"cssClass":"pl-s"},{"start":29,"end":30,"cssClass":"pl-pds"},{"start":30,"end":31,"cssClass":"pl-pds"},{"start":34,"end":35,"cssClass":"pl-k"},{"start":36,"end":40,"cssClass":"pl-k"}],[{"start":17,"end":19,"cssClass":"pl-smi"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":28,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":17,"end":19,"cssClass":"pl-smi"},{"start":27,"end":28,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":11,"end":20,"cssClass":"pl-s"},{"start":11,"end":12,"cssClass":"pl-pds"},{"start":12,"end":19,"cssClass":"pl-smi"},{"start":19,"end":20,"cssClass":"pl-pds"},{"start":21,"end":23,"cssClass":"pl-k"},{"start":25,"end":28,"cssClass":"pl-s"},{"start":25,"end":26,"cssClass":"pl-pds"},{"start":27,"end":28,"cssClass":"pl-pds"},{"start":29,"end":31,"cssClass":"pl-k"},{"start":33,"end":42,"cssClass":"pl-s"},{"start":33,"end":34,"cssClass":"pl-pds"},{"start":34,"end":41,"cssClass":"pl-smi"},{"start":41,"end":42,"cssClass":"pl-pds"},{"start":43,"end":45,"cssClass":"pl-k"},{"start":47,"end":50,"cssClass":"pl-s"},{"start":47,"end":48,"cssClass":"pl-pds"},{"start":49,"end":50,"cssClass":"pl-pds"},{"start":53,"end":54,"cssClass":"pl-k"},{"start":55,"end":59,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":15,"cssClass":"pl-en"}],[{"start":12,"end":66,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":65,"end":66,"cssClass":"pl-pds"},{"start":67,"end":70,"cssClass":"pl-s"},{"start":67,"end":68,"cssClass":"pl-pds"},{"start":69,"end":70,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":8,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":16,"cssClass":"pl-en"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":11,"cssClass":"pl-k"},{"start":12,"end":16,"cssClass":"pl-c1"},{"start":23,"end":79,"cssClass":"pl-s"},{"start":23,"end":24,"cssClass":"pl-pds"},{"start":24,"end":33,"cssClass":"pl-smi"},{"start":70,"end":78,"cssClass":"pl-smi"},{"start":78,"end":79,"cssClass":"pl-pds"},{"start":80,"end":82,"cssClass":"pl-k"},{"start":83,"end":87,"cssClass":"pl-c1"}],[],[],[],[{"start":0,"end":7,"cssClass":"pl-en"}],[{"start":9,"end":93,"cssClass":"pl-s"},{"start":9,"end":11,"cssClass":"pl-pds"},{"start":92,"end":93,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":14,"end":16,"cssClass":"pl-smi"},{"start":17,"end":19,"cssClass":"pl-k"},{"start":24,"end":25,"cssClass":"pl-k"},{"start":26,"end":30,"cssClass":"pl-k"}],[],[{"start":8,"end":12,"cssClass":"pl-k"}],[],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":6,"cssClass":"pl-en"}],[{"start":12,"end":50,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":49,"end":50,"cssClass":"pl-pds"},{"start":51,"end":54,"cssClass":"pl-s"},{"start":51,"end":52,"cssClass":"pl-pds"},{"start":53,"end":54,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":13,"end":27,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":26,"end":27,"cssClass":"pl-pds"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":14,"end":16,"cssClass":"pl-smi"},{"start":17,"end":19,"cssClass":"pl-k"},{"start":24,"end":25,"cssClass":"pl-k"},{"start":26,"end":30,"cssClass":"pl-k"}],[],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":9,"end":93,"cssClass":"pl-s"},{"start":9,"end":11,"cssClass":"pl-pds"},{"start":92,"end":93,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":13,"end":49,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":48,"end":49,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":9,"cssClass":"pl-en"}],[{"start":12,"end":46,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":45,"end":46,"cssClass":"pl-pds"},{"start":47,"end":50,"cssClass":"pl-s"},{"start":47,"end":48,"cssClass":"pl-pds"},{"start":49,"end":50,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":14,"end":16,"cssClass":"pl-smi"},{"start":17,"end":19,"cssClass":"pl-k"},{"start":24,"end":25,"cssClass":"pl-k"},{"start":26,"end":30,"cssClass":"pl-k"}],[],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[],[],[],[],[],[],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":11,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":10,"end":11,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":102,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":66,"end":74,"cssClass":"pl-smi"},{"start":93,"end":101,"cssClass":"pl-smi"},{"start":101,"end":102,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":11,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":10,"end":11,"cssClass":"pl-pds"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":10,"cssClass":"pl-en"}],[{"start":12,"end":97,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":73,"end":81,"cssClass":"pl-smi"},{"start":86,"end":94,"cssClass":"pl-smi"},{"start":96,"end":97,"cssClass":"pl-pds"},{"start":98,"end":101,"cssClass":"pl-s"},{"start":98,"end":99,"cssClass":"pl-pds"},{"start":100,"end":101,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":14,"end":16,"cssClass":"pl-smi"},{"start":17,"end":19,"cssClass":"pl-k"},{"start":24,"end":25,"cssClass":"pl-k"},{"start":26,"end":30,"cssClass":"pl-k"}],[],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":103,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":53,"end":61,"cssClass":"pl-smi"},{"start":66,"end":74,"cssClass":"pl-smi"},{"start":102,"end":103,"cssClass":"pl-pds"}],[],[],[],[{"start":0,"end":12,"cssClass":"pl-en"}],[{"start":12,"end":84,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":83,"end":84,"cssClass":"pl-pds"},{"start":85,"end":88,"cssClass":"pl-s"},{"start":85,"end":86,"cssClass":"pl-pds"},{"start":87,"end":88,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":14,"end":16,"cssClass":"pl-smi"},{"start":17,"end":19,"cssClass":"pl-k"},{"start":24,"end":25,"cssClass":"pl-k"},{"start":26,"end":30,"cssClass":"pl-k"}],[],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":126,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":88,"end":96,"cssClass":"pl-smi"},{"start":101,"end":109,"cssClass":"pl-smi"},{"start":125,"end":126,"cssClass":"pl-pds"}],[],[],[],[{"start":0,"end":12,"cssClass":"pl-en"}],[{"start":9,"end":51,"cssClass":"pl-s"},{"start":9,"end":11,"cssClass":"pl-pds"},{"start":50,"end":51,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":13,"end":59,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":58,"end":59,"cssClass":"pl-pds"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":9,"end":18,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":10,"end":17,"cssClass":"pl-smi"},{"start":17,"end":18,"cssClass":"pl-pds"}],[],[],[{"start":0,"end":8,"cssClass":"pl-en"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":11,"cssClass":"pl-k"},{"start":12,"end":16,"cssClass":"pl-c1"},{"start":23,"end":53,"cssClass":"pl-s"},{"start":23,"end":24,"cssClass":"pl-pds"},{"start":52,"end":53,"cssClass":"pl-pds"},{"start":54,"end":56,"cssClass":"pl-k"},{"start":57,"end":61,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-k"},{"start":13,"end":22,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":14,"end":21,"cssClass":"pl-smi"},{"start":21,"end":22,"cssClass":"pl-pds"},{"start":25,"end":26,"cssClass":"pl-k"},{"start":27,"end":31,"cssClass":"pl-k"}],[{"start":13,"end":27,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":26,"end":27,"cssClass":"pl-pds"}],[],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":43,"end":50,"cssClass":"pl-smi"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":113,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":73,"end":96,"cssClass":"pl-smi"},{"start":112,"end":113,"cssClass":"pl-pds"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":5,"cssClass":"pl-en"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":15,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":14,"end":15,"cssClass":"pl-pds"}],[{"start":13,"end":52,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":51,"end":52,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[],[],[],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":14,"end":16,"cssClass":"pl-smi"},{"start":17,"end":19,"cssClass":"pl-k"},{"start":24,"end":25,"cssClass":"pl-k"},{"start":26,"end":30,"cssClass":"pl-k"}],[{"start":17,"end":38,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":37,"end":38,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-k"}],[{"start":17,"end":54,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":53,"end":54,"cssClass":"pl-pds"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":4,"cssClass":"pl-en"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":15,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":14,"end":15,"cssClass":"pl-pds"}],[{"start":13,"end":52,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":51,"end":52,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[],[],[],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":14,"end":16,"cssClass":"pl-smi"},{"start":17,"end":19,"cssClass":"pl-k"},{"start":24,"end":25,"cssClass":"pl-k"},{"start":26,"end":30,"cssClass":"pl-k"}],[{"start":17,"end":36,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":35,"end":36,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-k"}],[{"start":17,"end":53,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":52,"end":53,"cssClass":"pl-pds"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":7,"cssClass":"pl-en"}],[],[],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":13,"end":35,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":34,"end":35,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":49,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":48,"end":49,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":6,"cssClass":"pl-en"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":6,"cssClass":"pl-en"}],[{"start":14,"end":20,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":13,"end":52,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":51,"end":52,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":51,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":50,"end":51,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":7,"cssClass":"pl-en"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":13,"end":53,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":52,"end":53,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":52,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":51,"end":52,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":8,"cssClass":"pl-en"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":13,"cssClass":"pl-en"}],[],[],[],[],[],[{"start":0,"end":11,"cssClass":"pl-en"}],[{"start":4,"end":45,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":9,"end":86,"cssClass":"pl-s"},{"start":9,"end":11,"cssClass":"pl-pds"},{"start":85,"end":86,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":11,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":10,"end":11,"cssClass":"pl-pds"}],[],[],[],[{"start":0,"end":12,"cssClass":"pl-en"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":15,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":14,"end":15,"cssClass":"pl-pds"}],[{"start":13,"end":92,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":91,"end":92,"cssClass":"pl-pds"}],[],[{"start":4,"end":8,"cssClass":"pl-k"}],[],[{"start":13,"end":42,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":41,"end":42,"cssClass":"pl-pds"},{"start":43,"end":45,"cssClass":"pl-k"},{"start":46,"end":50,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":46,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":12,"cssClass":"pl-en"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":11,"cssClass":"pl-k"},{"start":12,"end":14,"cssClass":"pl-k"},{"start":50,"end":51,"cssClass":"pl-k"},{"start":52,"end":56,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":9,"end":100,"cssClass":"pl-s"},{"start":9,"end":11,"cssClass":"pl-pds"},{"start":33,"end":34,"cssClass":"pl-k"},{"start":47,"end":48,"cssClass":"pl-k"},{"start":53,"end":65,"cssClass":"pl-s"},{"start":53,"end":54,"cssClass":"pl-pds"},{"start":64,"end":65,"cssClass":"pl-pds"},{"start":66,"end":67,"cssClass":"pl-k"},{"start":75,"end":78,"cssClass":"pl-s"},{"start":75,"end":76,"cssClass":"pl-pds"},{"start":77,"end":78,"cssClass":"pl-pds"},{"start":83,"end":84,"cssClass":"pl-k"},{"start":92,"end":95,"cssClass":"pl-s"},{"start":92,"end":93,"cssClass":"pl-pds"},{"start":94,"end":95,"cssClass":"pl-pds"},{"start":99,"end":100,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":11,"end":20,"cssClass":"pl-s"},{"start":11,"end":12,"cssClass":"pl-pds"},{"start":12,"end":19,"cssClass":"pl-smi"},{"start":19,"end":20,"cssClass":"pl-pds"},{"start":21,"end":23,"cssClass":"pl-k"},{"start":25,"end":34,"cssClass":"pl-s"},{"start":25,"end":26,"cssClass":"pl-pds"},{"start":33,"end":34,"cssClass":"pl-pds"},{"start":37,"end":38,"cssClass":"pl-k"},{"start":39,"end":43,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":13,"cssClass":"pl-en"}],[{"start":9,"end":37,"cssClass":"pl-s"},{"start":9,"end":11,"cssClass":"pl-pds"},{"start":36,"end":37,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":11,"end":20,"cssClass":"pl-s"},{"start":11,"end":12,"cssClass":"pl-pds"},{"start":12,"end":19,"cssClass":"pl-smi"},{"start":19,"end":20,"cssClass":"pl-pds"},{"start":21,"end":23,"cssClass":"pl-k"},{"start":25,"end":34,"cssClass":"pl-s"},{"start":25,"end":26,"cssClass":"pl-pds"},{"start":33,"end":34,"cssClass":"pl-pds"},{"start":37,"end":38,"cssClass":"pl-k"},{"start":39,"end":43,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":15,"cssClass":"pl-en"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":15,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":14,"end":15,"cssClass":"pl-pds"}],[{"start":13,"end":40,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":39,"end":40,"cssClass":"pl-pds"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":14,"end":16,"cssClass":"pl-smi"},{"start":17,"end":19,"cssClass":"pl-k"},{"start":24,"end":25,"cssClass":"pl-k"},{"start":26,"end":30,"cssClass":"pl-k"}],[],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":13,"cssClass":"pl-en"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":15,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":14,"end":15,"cssClass":"pl-pds"}],[{"start":13,"end":40,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":39,"end":40,"cssClass":"pl-pds"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":14,"end":16,"cssClass":"pl-smi"},{"start":17,"end":19,"cssClass":"pl-k"},{"start":24,"end":25,"cssClass":"pl-k"},{"start":26,"end":30,"cssClass":"pl-k"}],[],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":11,"cssClass":"pl-en"}],[],[{"start":4,"end":8,"cssClass":"pl-k"},{"start":9,"end":11,"cssClass":"pl-smi"},{"start":12,"end":14,"cssClass":"pl-k"}],[],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":54,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":30,"end":38,"cssClass":"pl-smi"},{"start":45,"end":53,"cssClass":"pl-smi"},{"start":53,"end":54,"cssClass":"pl-pds"}],[],[],[],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":55,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":30,"end":39,"cssClass":"pl-smi"},{"start":46,"end":54,"cssClass":"pl-smi"},{"start":54,"end":55,"cssClass":"pl-pds"}],[],[],[],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":58,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":30,"end":36,"cssClass":"pl-smi"},{"start":49,"end":57,"cssClass":"pl-smi"},{"start":57,"end":58,"cssClass":"pl-pds"}],[],[{"start":4,"end":8,"cssClass":"pl-k"}],[],[],[],[{"start":0,"end":18,"cssClass":"pl-en"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":63,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":43,"end":51,"cssClass":"pl-smi"},{"start":54,"end":62,"cssClass":"pl-smi"},{"start":62,"end":63,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":60,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":43,"end":49,"cssClass":"pl-smi"},{"start":51,"end":59,"cssClass":"pl-smi"},{"start":59,"end":60,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":17,"cssClass":"pl-en"}],[{"start":10,"end":64,"cssClass":"pl-s"},{"start":10,"end":12,"cssClass":"pl-pds"},{"start":19,"end":20,"cssClass":"pl-k"},{"start":26,"end":38,"cssClass":"pl-s"},{"start":26,"end":27,"cssClass":"pl-pds"},{"start":37,"end":38,"cssClass":"pl-pds"},{"start":39,"end":40,"cssClass":"pl-k"},{"start":49,"end":55,"cssClass":"pl-s"},{"start":49,"end":50,"cssClass":"pl-pds"},{"start":54,"end":55,"cssClass":"pl-pds"},{"start":56,"end":57,"cssClass":"pl-k"},{"start":63,"end":64,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":16,"end":19,"cssClass":"pl-k"},{"start":24,"end":25,"cssClass":"pl-k"},{"start":26,"end":30,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":16,"cssClass":"pl-en"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":15,"cssClass":"pl-k"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":22,"end":26,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":54,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":30,"end":38,"cssClass":"pl-smi"},{"start":45,"end":53,"cssClass":"pl-smi"},{"start":53,"end":54,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":52,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":30,"end":36,"cssClass":"pl-smi"},{"start":43,"end":51,"cssClass":"pl-smi"},{"start":51,"end":52,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":44,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":56,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":42,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":14,"cssClass":"pl-en"}],[{"start":4,"end":9,"cssClass":"pl-k"},{"start":17,"end":19,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":18,"end":19,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":14,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":13,"end":14,"cssClass":"pl-pds"}],[{"start":9,"end":32,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":31,"end":32,"cssClass":"pl-pds"}],[{"start":9,"end":63,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":62,"end":63,"cssClass":"pl-pds"}],[{"start":9,"end":57,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":56,"end":57,"cssClass":"pl-pds"}],[{"start":9,"end":66,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":65,"end":66,"cssClass":"pl-pds"}],[{"start":9,"end":76,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":75,"end":76,"cssClass":"pl-pds"}],[{"start":9,"end":69,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":68,"end":69,"cssClass":"pl-pds"}],[{"start":9,"end":58,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":57,"end":58,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":64,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":63,"end":64,"cssClass":"pl-pds"}],[{"start":9,"end":39,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":29,"end":38,"cssClass":"pl-smi"},{"start":38,"end":39,"cssClass":"pl-pds"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":9,"end":20,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":10,"end":19,"cssClass":"pl-smi"},{"start":19,"end":20,"cssClass":"pl-pds"},{"start":21,"end":23,"cssClass":"pl-k"},{"start":24,"end":27,"cssClass":"pl-s"},{"start":24,"end":25,"cssClass":"pl-pds"},{"start":26,"end":27,"cssClass":"pl-pds"},{"start":29,"end":30,"cssClass":"pl-k"},{"start":31,"end":35,"cssClass":"pl-k"}],[],[{"start":4,"end":8,"cssClass":"pl-k"},{"start":11,"end":22,"cssClass":"pl-s"},{"start":11,"end":12,"cssClass":"pl-pds"},{"start":12,"end":21,"cssClass":"pl-smi"},{"start":21,"end":22,"cssClass":"pl-pds"},{"start":23,"end":25,"cssClass":"pl-k"},{"start":26,"end":29,"cssClass":"pl-s"},{"start":26,"end":27,"cssClass":"pl-pds"},{"start":28,"end":29,"cssClass":"pl-pds"},{"start":31,"end":32,"cssClass":"pl-k"},{"start":33,"end":37,"cssClass":"pl-k"}],[],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":47,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":46,"end":47,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":12,"cssClass":"pl-en"}],[{"start":4,"end":6,"cssClass":"pl-c1"},{"start":7,"end":8,"cssClass":"pl-k"}],[{"start":9,"end":26,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":25,"end":26,"cssClass":"pl-pds"}],[{"start":29,"end":30,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":9,"end":11,"cssClass":"pl-smi"},{"start":12,"end":15,"cssClass":"pl-k"},{"start":19,"end":20,"cssClass":"pl-k"},{"start":21,"end":25,"cssClass":"pl-k"}],[{"start":13,"end":34,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":33,"end":34,"cssClass":"pl-pds"}],[{"start":8,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":35,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":34,"end":35,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":10,"cssClass":"pl-k"}],[],[],[{"start":0,"end":27,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":25,"cssClass":"pl-en"}],[{"start":4,"end":28,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":7,"end":8,"cssClass":"pl-k"},{"start":9,"end":16,"cssClass":"pl-c1"},{"start":20,"end":21,"cssClass":"pl-k"},{"start":39,"end":40,"cssClass":"pl-k"},{"start":40,"end":41,"cssClass":"pl-k"},{"start":50,"end":51,"cssClass":"pl-k"},{"start":52,"end":56,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":61,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":60,"end":61,"cssClass":"pl-pds"}],[],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":13,"end":15,"cssClass":"pl-smi"},{"start":16,"end":19,"cssClass":"pl-k"},{"start":23,"end":24,"cssClass":"pl-k"},{"start":25,"end":29,"cssClass":"pl-k"}],[{"start":17,"end":57,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":56,"end":57,"cssClass":"pl-pds"}],[{"start":12,"end":16,"cssClass":"pl-c1"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":25,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":11,"end":23,"cssClass":"pl-s"},{"start":11,"end":12,"cssClass":"pl-pds"},{"start":12,"end":22,"cssClass":"pl-smi"},{"start":22,"end":23,"cssClass":"pl-pds"},{"start":24,"end":26,"cssClass":"pl-k"},{"start":28,"end":36,"cssClass":"pl-s"},{"start":28,"end":29,"cssClass":"pl-pds"},{"start":35,"end":36,"cssClass":"pl-pds"},{"start":39,"end":40,"cssClass":"pl-k"},{"start":41,"end":45,"cssClass":"pl-k"}],[],[{"start":4,"end":8,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":9,"end":11,"cssClass":"pl-smi"},{"start":12,"end":15,"cssClass":"pl-k"},{"start":19,"end":20,"cssClass":"pl-k"},{"start":21,"end":25,"cssClass":"pl-k"}],[{"start":13,"end":54,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":53,"end":54,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-c1"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":39,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":38,"end":39,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":39,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":9,"end":10,"cssClass":"pl-k"},{"start":11,"end":13,"cssClass":"pl-k"},{"start":14,"end":25,"cssClass":"pl-s"},{"start":14,"end":15,"cssClass":"pl-pds"},{"start":15,"end":24,"cssClass":"pl-smi"},{"start":24,"end":25,"cssClass":"pl-pds"},{"start":27,"end":28,"cssClass":"pl-k"},{"start":29,"end":33,"cssClass":"pl-k"}],[{"start":14,"end":23,"cssClass":"pl-smi"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":46,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":4,"end":9,"cssClass":"pl-k"},{"start":17,"end":19,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":18,"end":19,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":39,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":38,"end":39,"cssClass":"pl-pds"}],[{"start":9,"end":47,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":25,"end":34,"cssClass":"pl-smi"},{"start":46,"end":47,"cssClass":"pl-pds"}],[{"start":4,"end":60,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":4,"end":9,"cssClass":"pl-k"},{"start":22,"end":75,"cssClass":"pl-s"},{"start":22,"end":24,"cssClass":"pl-pds"},{"start":50,"end":51,"cssClass":"pl-k"},{"start":57,"end":66,"cssClass":"pl-smi"},{"start":67,"end":68,"cssClass":"pl-k"},{"start":74,"end":75,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":9,"end":23,"cssClass":"pl-smi"},{"start":24,"end":27,"cssClass":"pl-k"},{"start":31,"end":32,"cssClass":"pl-k"},{"start":33,"end":37,"cssClass":"pl-k"}],[{"start":8,"end":13,"cssClass":"pl-k"},{"start":23,"end":51,"cssClass":"pl-s"},{"start":23,"end":25,"cssClass":"pl-pds"},{"start":50,"end":51,"cssClass":"pl-pds"}],[{"start":13,"end":88,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":87,"end":88,"cssClass":"pl-pds"}],[{"start":13,"end":24,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":14,"end":23,"cssClass":"pl-smi"},{"start":23,"end":24,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-c1"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":59,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":58,"end":59,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":25,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":4,"end":9,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":74,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":73,"end":74,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":20,"cssClass":"pl-smi"},{"start":21,"end":24,"cssClass":"pl-k"},{"start":31,"end":33,"cssClass":"pl-k"},{"start":34,"end":44,"cssClass":"pl-smi"},{"start":45,"end":48,"cssClass":"pl-k"},{"start":53,"end":54,"cssClass":"pl-k"},{"start":55,"end":59,"cssClass":"pl-k"}],[{"start":13,"end":69,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":25,"end":35,"cssClass":"pl-smi"},{"start":68,"end":69,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":9,"end":88,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":24,"end":34,"cssClass":"pl-smi"},{"start":87,"end":88,"cssClass":"pl-pds"}],[{"start":4,"end":40,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":4,"end":49,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":4,"end":5,"cssClass":"pl-k"}],[{"start":4,"end":5,"cssClass":"pl-k"},{"start":34,"end":43,"cssClass":"pl-smi"},{"start":68,"end":78,"cssClass":"pl-smi"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":9,"end":11,"cssClass":"pl-smi"},{"start":12,"end":15,"cssClass":"pl-k"},{"start":19,"end":20,"cssClass":"pl-k"},{"start":21,"end":25,"cssClass":"pl-k"}],[{"start":13,"end":51,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":50,"end":51,"cssClass":"pl-pds"}],[{"start":15,"end":16,"cssClass":"pl-k"},{"start":26,"end":35,"cssClass":"pl-smi"}],[{"start":8,"end":12,"cssClass":"pl-c1"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":54,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":53,"end":54,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":17,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":4,"end":5,"cssClass":"pl-k"},{"start":40,"end":49,"cssClass":"pl-smi"}],[{"start":31,"end":40,"cssClass":"pl-smi"},{"start":67,"end":76,"cssClass":"pl-smi"}],[],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":9,"end":11,"cssClass":"pl-smi"},{"start":12,"end":15,"cssClass":"pl-k"},{"start":19,"end":20,"cssClass":"pl-k"},{"start":21,"end":25,"cssClass":"pl-k"}],[{"start":13,"end":40,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":39,"end":40,"cssClass":"pl-pds"}],[{"start":15,"end":16,"cssClass":"pl-k"},{"start":26,"end":35,"cssClass":"pl-smi"}],[{"start":8,"end":12,"cssClass":"pl-c1"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":57,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":56,"end":57,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":5,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":9,"end":11,"cssClass":"pl-smi"},{"start":12,"end":15,"cssClass":"pl-k"},{"start":19,"end":20,"cssClass":"pl-k"},{"start":21,"end":25,"cssClass":"pl-k"}],[{"start":13,"end":47,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":46,"end":47,"cssClass":"pl-pds"}],[],[{"start":18,"end":27,"cssClass":"pl-smi"}],[{"start":8,"end":12,"cssClass":"pl-c1"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":48,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":47,"end":48,"cssClass":"pl-pds"}],[],[{"start":18,"end":27,"cssClass":"pl-smi"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[],[{"start":0,"end":24,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":28,"cssClass":"pl-en"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":14,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":13,"end":14,"cssClass":"pl-pds"}],[{"start":9,"end":36,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":35,"end":36,"cssClass":"pl-pds"}],[{"start":9,"end":53,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":52,"end":53,"cssClass":"pl-pds"}],[{"start":9,"end":43,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":42,"end":43,"cssClass":"pl-pds"}],[{"start":9,"end":51,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":50,"end":51,"cssClass":"pl-pds"}],[{"start":12,"end":56,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":55,"end":56,"cssClass":"pl-pds"},{"start":57,"end":60,"cssClass":"pl-s"},{"start":57,"end":58,"cssClass":"pl-pds"},{"start":59,"end":60,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":9,"end":11,"cssClass":"pl-smi"},{"start":12,"end":15,"cssClass":"pl-k"},{"start":19,"end":20,"cssClass":"pl-k"},{"start":21,"end":25,"cssClass":"pl-k"}],[],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":13,"end":15,"cssClass":"pl-smi"},{"start":16,"end":19,"cssClass":"pl-k"},{"start":23,"end":24,"cssClass":"pl-k"},{"start":25,"end":29,"cssClass":"pl-k"}],[{"start":17,"end":56,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":55,"end":56,"cssClass":"pl-pds"}],[{"start":12,"end":16,"cssClass":"pl-c1"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":18,"end":20,"cssClass":"pl-s"},{"start":18,"end":19,"cssClass":"pl-pds"},{"start":19,"end":20,"cssClass":"pl-pds"}],[{"start":21,"end":23,"cssClass":"pl-s"},{"start":21,"end":22,"cssClass":"pl-pds"},{"start":22,"end":23,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-s"},{"start":24,"end":25,"cssClass":"pl-pds"},{"start":25,"end":26,"cssClass":"pl-pds"}],[],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":13,"end":14,"cssClass":"pl-k"},{"start":15,"end":17,"cssClass":"pl-k"},{"start":18,"end":29,"cssClass":"pl-s"},{"start":18,"end":19,"cssClass":"pl-pds"},{"start":19,"end":28,"cssClass":"pl-smi"},{"start":28,"end":29,"cssClass":"pl-pds"},{"start":31,"end":32,"cssClass":"pl-k"},{"start":33,"end":37,"cssClass":"pl-k"}],[{"start":18,"end":27,"cssClass":"pl-smi"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":13,"end":40,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":39,"end":40,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":41,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":40,"end":41,"cssClass":"pl-pds"}],[{"start":13,"end":54,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":29,"end":41,"cssClass":"pl-smi"},{"start":53,"end":54,"cssClass":"pl-pds"}],[{"start":8,"end":64,"cssClass":"pl-c"},{"start":8,"end":9,"cssClass":"pl-c"}],[{"start":8,"end":13,"cssClass":"pl-k"},{"start":26,"end":82,"cssClass":"pl-s"},{"start":26,"end":28,"cssClass":"pl-pds"},{"start":54,"end":55,"cssClass":"pl-k"},{"start":61,"end":73,"cssClass":"pl-smi"},{"start":74,"end":75,"cssClass":"pl-k"},{"start":81,"end":82,"cssClass":"pl-pds"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":13,"end":27,"cssClass":"pl-smi"},{"start":28,"end":31,"cssClass":"pl-k"},{"start":35,"end":36,"cssClass":"pl-k"},{"start":37,"end":41,"cssClass":"pl-k"}],[{"start":12,"end":17,"cssClass":"pl-k"},{"start":27,"end":55,"cssClass":"pl-s"},{"start":27,"end":29,"cssClass":"pl-pds"},{"start":54,"end":55,"cssClass":"pl-pds"}],[{"start":17,"end":92,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":91,"end":92,"cssClass":"pl-pds"}],[{"start":17,"end":28,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":18,"end":27,"cssClass":"pl-smi"},{"start":27,"end":28,"cssClass":"pl-pds"}],[{"start":12,"end":16,"cssClass":"pl-c1"}],[{"start":8,"end":12,"cssClass":"pl-k"}],[{"start":17,"end":63,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":62,"end":63,"cssClass":"pl-pds"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":13,"end":59,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":58,"end":59,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":38,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":37,"end":38,"cssClass":"pl-pds"}],[{"start":13,"end":64,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":48,"end":63,"cssClass":"pl-smi"},{"start":63,"end":64,"cssClass":"pl-pds"}],[{"start":13,"end":58,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":57,"end":58,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":16,"end":40,"cssClass":"pl-s"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":39,"end":40,"cssClass":"pl-pds"}],[{"start":13,"end":63,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":44,"end":62,"cssClass":"pl-smi"},{"start":62,"end":63,"cssClass":"pl-pds"}],[{"start":8,"end":9,"cssClass":"pl-k"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":13,"end":15,"cssClass":"pl-smi"},{"start":16,"end":19,"cssClass":"pl-k"},{"start":23,"end":24,"cssClass":"pl-k"},{"start":25,"end":29,"cssClass":"pl-k"}],[{"start":17,"end":68,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":67,"end":68,"cssClass":"pl-pds"}],[{"start":12,"end":16,"cssClass":"pl-c1"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":8,"end":14,"cssClass":"pl-k"},{"start":22,"end":39,"cssClass":"pl-s"},{"start":22,"end":23,"cssClass":"pl-pds"},{"start":23,"end":38,"cssClass":"pl-smi"},{"start":38,"end":39,"cssClass":"pl-pds"}],[{"start":8,"end":14,"cssClass":"pl-k"},{"start":24,"end":42,"cssClass":"pl-smi"}],[{"start":8,"end":9,"cssClass":"pl-k"},{"start":51,"end":63,"cssClass":"pl-smi"},{"start":67,"end":68,"cssClass":"pl-k"},{"start":69,"end":81,"cssClass":"pl-smi"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":13,"end":15,"cssClass":"pl-smi"},{"start":16,"end":19,"cssClass":"pl-k"},{"start":23,"end":24,"cssClass":"pl-k"},{"start":25,"end":29,"cssClass":"pl-k"}],[{"start":17,"end":41,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":40,"end":41,"cssClass":"pl-pds"}],[{"start":19,"end":20,"cssClass":"pl-k"},{"start":30,"end":42,"cssClass":"pl-smi"}],[{"start":12,"end":16,"cssClass":"pl-c1"}],[{"start":8,"end":12,"cssClass":"pl-k"}],[{"start":17,"end":51,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":50,"end":51,"cssClass":"pl-pds"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":8,"end":9,"cssClass":"pl-k"},{"start":44,"end":56,"cssClass":"pl-smi"},{"start":60,"end":61,"cssClass":"pl-k"},{"start":62,"end":74,"cssClass":"pl-smi"}],[{"start":35,"end":47,"cssClass":"pl-smi"},{"start":74,"end":86,"cssClass":"pl-smi"}],[],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":13,"end":15,"cssClass":"pl-smi"},{"start":16,"end":19,"cssClass":"pl-k"},{"start":23,"end":24,"cssClass":"pl-k"},{"start":25,"end":29,"cssClass":"pl-k"}],[{"start":17,"end":43,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":42,"end":43,"cssClass":"pl-pds"}],[{"start":19,"end":20,"cssClass":"pl-k"},{"start":30,"end":42,"cssClass":"pl-smi"}],[{"start":12,"end":16,"cssClass":"pl-c1"}],[{"start":8,"end":12,"cssClass":"pl-k"}],[{"start":17,"end":60,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":59,"end":60,"cssClass":"pl-pds"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":8,"end":9,"cssClass":"pl-k"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":13,"end":15,"cssClass":"pl-smi"},{"start":16,"end":19,"cssClass":"pl-k"},{"start":23,"end":24,"cssClass":"pl-k"},{"start":25,"end":29,"cssClass":"pl-k"}],[{"start":17,"end":48,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":47,"end":48,"cssClass":"pl-pds"}],[],[{"start":22,"end":31,"cssClass":"pl-smi"}],[{"start":12,"end":16,"cssClass":"pl-c1"}],[{"start":8,"end":12,"cssClass":"pl-k"}],[{"start":17,"end":58,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":57,"end":58,"cssClass":"pl-pds"}],[],[{"start":22,"end":31,"cssClass":"pl-smi"}],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":70,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":9,"cssClass":"pl-en"}],[],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":13,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"}],[{"start":0,"end":32,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":24,"end":32,"cssClass":"pl-smi"}],[{"start":0,"end":38,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":58,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":60,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":57,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":58,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":3,"cssClass":"pl-s"},{"start":2,"end":3,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":11,"cssClass":"pl-k"},{"start":12,"end":16,"cssClass":"pl-c1"},{"start":20,"end":51,"cssClass":"pl-s"},{"start":20,"end":21,"cssClass":"pl-pds"},{"start":50,"end":51,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"},{"start":9,"end":17,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":10,"end":16,"cssClass":"pl-smi"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":18,"end":20,"cssClass":"pl-k"}],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[{"start":4,"end":5,"cssClass":"pl-k"}],[{"start":13,"end":45,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":44,"end":45,"cssClass":"pl-pds"}],[],[{"start":4,"end":8,"cssClass":"pl-k"}],[],[],[{"start":0,"end":16,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":10,"cssClass":"pl-en"}],[{"start":4,"end":18,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":7,"end":25,"cssClass":"pl-smi"},{"start":26,"end":44,"cssClass":"pl-smi"}],[{"start":4,"end":16,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[{"start":18,"end":36,"cssClass":"pl-smi"},{"start":37,"end":54,"cssClass":"pl-smi"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":16,"cssClass":"pl-k"},{"start":21,"end":22,"cssClass":"pl-k"},{"start":23,"end":27,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":38,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":37,"end":38,"cssClass":"pl-pds"}],[{"start":11,"end":29,"cssClass":"pl-smi"},{"start":34,"end":52,"cssClass":"pl-smi"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":39,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":38,"end":39,"cssClass":"pl-pds"}],[{"start":14,"end":32,"cssClass":"pl-smi"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":7,"end":27,"cssClass":"pl-smi"},{"start":28,"end":48,"cssClass":"pl-smi"}],[{"start":18,"end":38,"cssClass":"pl-smi"},{"start":39,"end":58,"cssClass":"pl-smi"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":16,"cssClass":"pl-k"},{"start":21,"end":22,"cssClass":"pl-k"},{"start":23,"end":27,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":40,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":39,"end":40,"cssClass":"pl-pds"}],[{"start":11,"end":31,"cssClass":"pl-smi"},{"start":36,"end":56,"cssClass":"pl-smi"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":41,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":40,"end":41,"cssClass":"pl-pds"}],[{"start":14,"end":34,"cssClass":"pl-smi"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":17,"cssClass":"pl-c"},{"start":4,"end":5,"cssClass":"pl-c"}],[],[],[],[{"start":0,"end":22,"cssClass":"pl-en"}],[{"start":9,"end":50,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":49,"end":50,"cssClass":"pl-pds"}],[{"start":15,"end":16,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":44,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":43,"end":44,"cssClass":"pl-pds"},{"start":45,"end":47,"cssClass":"pl-k"}],[],[],[{"start":9,"end":55,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":54,"end":55,"cssClass":"pl-pds"}],[],[],[{"start":0,"end":23,"cssClass":"pl-en"}],[{"start":15,"end":16,"cssClass":"pl-k"},{"start":25,"end":35,"cssClass":"pl-s"},{"start":25,"end":26,"cssClass":"pl-pds"},{"start":34,"end":35,"cssClass":"pl-pds"},{"start":36,"end":37,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":16,"cssClass":"pl-k"},{"start":21,"end":22,"cssClass":"pl-k"},{"start":23,"end":27,"cssClass":"pl-k"}],[{"start":13,"end":63,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":62,"end":63,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":64,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":63,"end":64,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":50,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":44,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":9,"cssClass":"pl-en"}],[{"start":9,"end":29,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":28,"end":29,"cssClass":"pl-pds"}],[{"start":4,"end":9,"cssClass":"pl-k"},{"start":19,"end":21,"cssClass":"pl-s"},{"start":19,"end":20,"cssClass":"pl-pds"},{"start":20,"end":21,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":16,"cssClass":"pl-k"},{"start":21,"end":22,"cssClass":"pl-k"},{"start":23,"end":27,"cssClass":"pl-k"}],[{"start":17,"end":19,"cssClass":"pl-smi"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":42,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":41,"end":42,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":9,"end":31,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":19,"end":30,"cssClass":"pl-smi"},{"start":30,"end":31,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":11,"cssClass":"pl-k"},{"start":12,"end":14,"cssClass":"pl-k"},{"start":15,"end":26,"cssClass":"pl-smi"},{"start":29,"end":30,"cssClass":"pl-k"},{"start":31,"end":35,"cssClass":"pl-k"}],[{"start":13,"end":74,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":36,"end":47,"cssClass":"pl-smi"},{"start":73,"end":74,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":13,"end":93,"cssClass":"pl-s"},{"start":13,"end":15,"cssClass":"pl-pds"},{"start":22,"end":33,"cssClass":"pl-smi"},{"start":49,"end":50,"cssClass":"pl-k"},{"start":55,"end":67,"cssClass":"pl-s"},{"start":55,"end":56,"cssClass":"pl-pds"},{"start":66,"end":67,"cssClass":"pl-pds"},{"start":68,"end":69,"cssClass":"pl-k"},{"start":77,"end":80,"cssClass":"pl-s"},{"start":77,"end":78,"cssClass":"pl-pds"},{"start":79,"end":80,"cssClass":"pl-pds"},{"start":81,"end":92,"cssClass":"pl-s"},{"start":81,"end":82,"cssClass":"pl-pds"},{"start":91,"end":92,"cssClass":"pl-pds"},{"start":92,"end":93,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":21,"cssClass":"pl-smi"},{"start":22,"end":25,"cssClass":"pl-k"},{"start":26,"end":60,"cssClass":"pl-smi"},{"start":63,"end":64,"cssClass":"pl-k"},{"start":65,"end":69,"cssClass":"pl-k"}],[{"start":11,"end":13,"cssClass":"pl-smi"}],[{"start":8,"end":10,"cssClass":"pl-k"},{"start":14,"end":16,"cssClass":"pl-smi"},{"start":17,"end":20,"cssClass":"pl-k"},{"start":25,"end":26,"cssClass":"pl-k"},{"start":27,"end":31,"cssClass":"pl-k"}],[{"start":17,"end":53,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":34,"end":45,"cssClass":"pl-smi"},{"start":52,"end":53,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-k"}],[{"start":17,"end":54,"cssClass":"pl-s"},{"start":17,"end":18,"cssClass":"pl-pds"},{"start":34,"end":45,"cssClass":"pl-smi"},{"start":53,"end":54,"cssClass":"pl-pds"}],[],[{"start":8,"end":10,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":116,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":42,"end":53,"cssClass":"pl-smi"},{"start":68,"end":102,"cssClass":"pl-smi"},{"start":115,"end":116,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":41,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":21,"cssClass":"pl-en"}],[{"start":9,"end":50,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":49,"end":50,"cssClass":"pl-pds"}],[{"start":4,"end":9,"cssClass":"pl-k"},{"start":25,"end":27,"cssClass":"pl-s"},{"start":25,"end":26,"cssClass":"pl-pds"},{"start":26,"end":27,"cssClass":"pl-pds"}],[{"start":4,"end":9,"cssClass":"pl-k"},{"start":24,"end":26,"cssClass":"pl-s"},{"start":24,"end":25,"cssClass":"pl-pds"},{"start":25,"end":26,"cssClass":"pl-pds"}],[{"start":19,"end":73,"cssClass":"pl-s"},{"start":19,"end":21,"cssClass":"pl-pds"},{"start":25,"end":43,"cssClass":"pl-smi"},{"start":44,"end":45,"cssClass":"pl-k"},{"start":61,"end":62,"cssClass":"pl-k"},{"start":69,"end":72,"cssClass":"pl-s"},{"start":69,"end":70,"cssClass":"pl-pds"},{"start":71,"end":72,"cssClass":"pl-pds"},{"start":72,"end":73,"cssClass":"pl-pds"}],[{"start":18,"end":71,"cssClass":"pl-s"},{"start":18,"end":20,"cssClass":"pl-pds"},{"start":24,"end":42,"cssClass":"pl-smi"},{"start":43,"end":44,"cssClass":"pl-k"},{"start":59,"end":60,"cssClass":"pl-k"},{"start":67,"end":70,"cssClass":"pl-s"},{"start":67,"end":68,"cssClass":"pl-pds"},{"start":69,"end":70,"cssClass":"pl-pds"},{"start":70,"end":71,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":11,"cssClass":"pl-k"},{"start":12,"end":14,"cssClass":"pl-k"},{"start":15,"end":32,"cssClass":"pl-smi"},{"start":33,"end":35,"cssClass":"pl-k"},{"start":36,"end":37,"cssClass":"pl-k"},{"start":38,"end":40,"cssClass":"pl-k"},{"start":41,"end":57,"cssClass":"pl-smi"},{"start":60,"end":61,"cssClass":"pl-k"},{"start":62,"end":66,"cssClass":"pl-k"}],[{"start":13,"end":70,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":69,"end":70,"cssClass":"pl-pds"}],[{"start":8,"end":12,"cssClass":"pl-c1"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-k"},{"start":13,"end":30,"cssClass":"pl-smi"},{"start":33,"end":34,"cssClass":"pl-k"},{"start":35,"end":39,"cssClass":"pl-k"}],[{"start":19,"end":20,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":68,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":38,"end":55,"cssClass":"pl-smi"},{"start":67,"end":68,"cssClass":"pl-pds"},{"start":69,"end":71,"cssClass":"pl-k"}],[],[],[{"start":13,"end":76,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":50,"end":67,"cssClass":"pl-smi"},{"start":75,"end":76,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":68,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":67,"end":68,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-k"},{"start":13,"end":29,"cssClass":"pl-smi"},{"start":32,"end":33,"cssClass":"pl-k"},{"start":34,"end":38,"cssClass":"pl-k"}],[{"start":19,"end":20,"cssClass":"pl-k"}],[{"start":8,"end":12,"cssClass":"pl-c1"},{"start":13,"end":67,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":38,"end":54,"cssClass":"pl-smi"},{"start":66,"end":67,"cssClass":"pl-pds"},{"start":68,"end":70,"cssClass":"pl-k"}],[],[],[{"start":13,"end":75,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":50,"end":66,"cssClass":"pl-smi"},{"start":74,"end":75,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":67,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":66,"end":67,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":23,"cssClass":"pl-c"},{"start":0,"end":1,"cssClass":"pl-c"}],[{"start":0,"end":22,"cssClass":"pl-en"}],[{"start":15,"end":16,"cssClass":"pl-k"},{"start":25,"end":37,"cssClass":"pl-s"},{"start":25,"end":26,"cssClass":"pl-pds"},{"start":36,"end":37,"cssClass":"pl-pds"},{"start":38,"end":39,"cssClass":"pl-k"}],[{"start":4,"end":6,"cssClass":"pl-k"},{"start":10,"end":12,"cssClass":"pl-smi"},{"start":13,"end":16,"cssClass":"pl-k"},{"start":21,"end":22,"cssClass":"pl-k"},{"start":23,"end":27,"cssClass":"pl-k"}],[{"start":13,"end":59,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":58,"end":59,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":13,"end":60,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":59,"end":60,"cssClass":"pl-pds"}],[{"start":4,"end":6,"cssClass":"pl-k"}],[],[],[{"start":0,"end":10,"cssClass":"pl-en"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":37,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":36,"end":37,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":53,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":52,"end":53,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":52,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":51,"end":52,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":45,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":44,"end":45,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":45,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":44,"end":45,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":47,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":46,"end":47,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":50,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":49,"end":50,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":63,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":62,"end":63,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":64,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":63,"end":64,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":49,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":48,"end":49,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":46,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":45,"end":46,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":47,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":46,"end":47,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":49,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"},{"start":48,"end":49,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":50,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":49,"end":50,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":48,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":47,"end":48,"cssClass":"pl-pds"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":53,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":52,"end":53,"cssClass":"pl-pds"}],[],[],[{"start":0,"end":9,"cssClass":"pl-en"}],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":12,"end":13,"cssClass":"pl-s"},{"start":12,"end":13,"cssClass":"pl-pds"}],[{"start":0,"end":35,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":27,"end":35,"cssClass":"pl-smi"}],[{"start":0,"end":25,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":16,"cssClass":"pl-s"}],[{"start":0,"end":35,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":35,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":35,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":16,"cssClass":"pl-s"}],[{"start":0,"end":35,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":32,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":37,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":37,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":16,"cssClass":"pl-s"}],[{"start":0,"end":31,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":31,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":12,"end":20,"cssClass":"pl-smi"}],[{"start":0,"end":34,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":13,"end":21,"cssClass":"pl-smi"}],[{"start":0,"end":39,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":13,"end":21,"cssClass":"pl-smi"}],[{"start":0,"end":37,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":13,"end":21,"cssClass":"pl-smi"}],[{"start":0,"end":16,"cssClass":"pl-s"}],[{"start":0,"end":52,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":13,"end":21,"cssClass":"pl-smi"}],[{"start":0,"end":52,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":13,"end":21,"cssClass":"pl-smi"}],[{"start":0,"end":16,"cssClass":"pl-s"}],[{"start":0,"end":33,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":13,"end":21,"cssClass":"pl-smi"}],[{"start":0,"end":34,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":13,"end":21,"cssClass":"pl-smi"}],[{"start":0,"end":36,"cssClass":"pl-s"},{"start":2,"end":10,"cssClass":"pl-smi"},{"start":13,"end":21,"cssClass":"pl-smi"}],[{"start":0,"end":2,"cssClass":"pl-s"},{"start":1,"end":2,"cssClass":"pl-pds"}],[],[{"start":4,"end":8,"cssClass":"pl-c1"},{"start":9,"end":11,"cssClass":"pl-k"},{"start":12,"end":16,"cssClass":"pl-c1"},{"start":20,"end":88,"cssClass":"pl-s"},{"start":20,"end":21,"cssClass":"pl-pds"},{"start":87,"end":88,"cssClass":"pl-pds"}],[],[{"start":4,"end":8,"cssClass":"pl-k"},{"start":9,"end":17,"cssClass":"pl-s"},{"start":9,"end":10,"cssClass":"pl-pds"},{"start":10,"end":16,"cssClass":"pl-smi"},{"start":16,"end":17,"cssClass":"pl-pds"},{"start":18,"end":20,"cssClass":"pl-k"}],[],[{"start":8,"end":12,"cssClass":"pl-c1"}],[],[],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"},{"start":25,"end":31,"cssClass":"pl-c1"}],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[],[],[],[],[],[],[],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[{"start":4,"end":5,"cssClass":"pl-k"}],[{"start":13,"end":80,"cssClass":"pl-s"},{"start":13,"end":14,"cssClass":"pl-pds"},{"start":79,"end":80,"cssClass":"pl-pds"}],[],[{"start":4,"end":8,"cssClass":"pl-k"}],[],[],[{"start":0,"end":2,"cssClass":"pl-k"},{"start":6,"end":8,"cssClass":"pl-smi"},{"start":9,"end":10,"cssClass":"pl-k"},{"start":15,"end":16,"cssClass":"pl-k"},{"start":17,"end":21,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"},{"start":9,"end":11,"cssClass":"pl-smi"},{"start":12,"end":14,"cssClass":"pl-k"}],[{"start":4,"end":11,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":10,"end":11,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":10,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":9,"end":10,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":13,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":12,"end":13,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":12,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":11,"end":12,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":12,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":11,"end":12,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"},{"start":27,"end":33,"cssClass":"pl-c1"}],[],[{"start":4,"end":13,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":12,"end":13,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":9,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":8,"end":9,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":11,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":10,"end":11,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":12,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":11,"end":12,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":13,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":12,"end":13,"cssClass":"pl-pds"}],[{"start":26,"end":28,"cssClass":"pl-k"}],[],[{"start":4,"end":15,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":14,"end":15,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":9,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":8,"end":9,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"}],[],[{"start":4,"end":11,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":10,"end":11,"cssClass":"pl-pds"}],[{"start":24,"end":26,"cssClass":"pl-k"},{"start":37,"end":39,"cssClass":"pl-smi"}],[],[{"start":4,"end":10,"cssClass":"pl-s"},{"start":4,"end":5,"cssClass":"pl-pds"},{"start":9,"end":10,"cssClass":"pl-pds"}],[{"start":22,"end":24,"cssClass":"pl-k"}],[],[{"start":4,"end":5,"cssClass":"pl-k"}],[{"start":4,"end":8,"cssClass":"pl-k"}],[{"start":0,"end":4,"cssClass":"pl-k"}],[],[{"start":0,"end":2,"cssClass":"pl-k"}]],"csv":null,"csvError":null,"dependabotInfo":{"showConfigurationBanner":false,"configFilePath":null,"networkDependabotPath":"/FranzKafkaYu/x-ui/network/updates","dismissConfigurationNoticePath":"/settings/dismiss-notice/dependabot_configuration_notice","configurationNoticeDismissed":false,"repoAlertsPath":"/FranzKafkaYu/x-ui/security/dependabot","repoSecurityAndAnalysisPath":"/FranzKafkaYu/x-ui/settings/security_analysis","repoOwnerIsOrg":false,"currentUserCanAdminRepo":false},"displayName":"x-ui_en.sh","displayUrl":"https://github.com/FranzKafkaYu/x-ui/blob/main/x-ui_en.sh?raw=true","headerInfo":{"blobSize":"25 KB","deleteInfo":{"deleteTooltip":"Delete the file in your fork of this project"},"editInfo":{"editTooltip":"Edit the file in your fork of this project"},"ghDesktopPath":"https://desktop.github.com","gitLfsPath":null,"onBranch":true,"shortPath":"ee53766","siteNavLoginPath":"/login?return_to=https%3A%2F%2Fgithub.com%2FFranzKafkaYu%2Fx-ui%2Fblob%2Fmain%2Fx-ui_en.sh","isCSV":false,"isRichtext":false,"toc":null,"lineInfo":{"truncatedLoc":"935","truncatedSloc":"871"},"mode":"file"},"image":false,"isCodeownersFile":null,"isPlain":false,"isValidLegacyIssueTemplate":false,"issueTemplateHelpUrl":"https://docs.github.com/articles/about-issue-and-pull-request-templates","issueTemplate":null,"discussionTemplate":null,"language":"Shell","languageID":346,"large":false,"loggedIn":true,"newDiscussionPath":"/FranzKafkaYu/x-ui/discussions/new","newIssuePath":"/FranzKafkaYu/x-ui/issues/new","planSupportInfo":{"repoIsFork":null,"repoOwnedByCurrentUser":null,"requestFullPath":"/FranzKafkaYu/x-ui/blob/main/x-ui_en.sh","showFreeOrgGatedFeatureMessage":null,"showPlanSupportBanner":null,"upgradeDataAttributes":null,"upgradePath":null},"publishBannersInfo":{"dismissActionNoticePath":"/settings/dismiss-notice/publish_action_from_dockerfile","dismissStackNoticePath":"/settings/dismiss-notice/publish_stack_from_file","releasePath":"/FranzKafkaYu/x-ui/releases/new?marketplace=true","showPublishActionBanner":false,"showPublishStackBanner":false},"renderImageOrRaw":false,"richText":null,"renderedFileInfo":null,"shortPath":null,"tabSize":8,"topBannersInfo":{"overridingGlobalFundingFile":false,"globalPreferredFundingPath":null,"repoOwner":"FranzKafkaYu","repoName":"x-ui","showInvalidCitationWarning":false,"citationHelpUrl":"https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/about-citation-files","showDependabotConfigurationBanner":false,"actionsOnboardingTip":null},"truncated":false,"viewable":true,"workflowRedirectUrl":null,"symbols":{"timedOut":false,"notAnalyzed":false,"symbols":[{"name":"LOGD","kind":"function","identStart":590,"identEnd":594,"extentStart":581,"extentEnd":641,"fullyQualifiedName":"LOGD","identUtf16":{"start":{"lineNumber":18,"utf16Col":9},"end":{"lineNumber":18,"utf16Col":13}},"extentUtf16":{"start":{"lineNumber":18,"utf16Col":0},"end":{"lineNumber":20,"utf16Col":1}}},{"name":"LOGE","kind":"function","identStart":652,"identEnd":656,"extentStart":643,"extentEnd":700,"fullyQualifiedName":"LOGE","identUtf16":{"start":{"lineNumber":22,"utf16Col":9},"end":{"lineNumber":22,"utf16Col":13}},"extentUtf16":{"start":{"lineNumber":22,"utf16Col":0},"end":{"lineNumber":24,"utf16Col":1}}},{"name":"LOGI","kind":"function","identStart":711,"identEnd":715,"extentStart":702,"extentEnd":761,"fullyQualifiedName":"LOGI","identUtf16":{"start":{"lineNumber":26,"utf16Col":9},"end":{"lineNumber":26,"utf16Col":13}},"extentUtf16":{"start":{"lineNumber":26,"utf16Col":0},"end":{"lineNumber":28,"utf16Col":1}}},{"name":"confirm","kind":"function","identStart":2275,"identEnd":2282,"extentStart":2275,"extentEnd":2595,"fullyQualifiedName":"confirm","identUtf16":{"start":{"lineNumber":75,"utf16Col":0},"end":{"lineNumber":75,"utf16Col":7}},"extentUtf16":{"start":{"lineNumber":75,"utf16Col":0},"end":{"lineNumber":89,"utf16Col":1}}},{"name":"confirm_restart","kind":"function","identStart":2597,"identEnd":2612,"extentStart":2597,"extentEnd":2766,"fullyQualifiedName":"confirm_restart","identUtf16":{"start":{"lineNumber":91,"utf16Col":0},"end":{"lineNumber":91,"utf16Col":15}},"extentUtf16":{"start":{"lineNumber":91,"utf16Col":0},"end":{"lineNumber":98,"utf16Col":1}}},{"name":"before_show_menu","kind":"function","identStart":2768,"identEnd":2784,"extentStart":2768,"extentEnd":2897,"fullyQualifiedName":"before_show_menu","identUtf16":{"start":{"lineNumber":100,"utf16Col":0},"end":{"lineNumber":100,"utf16Col":16}},"extentUtf16":{"start":{"lineNumber":100,"utf16Col":0},"end":{"lineNumber":103,"utf16Col":1}}},{"name":"install","kind":"function","identStart":2899,"identEnd":2906,"extentStart":2899,"extentEnd":3133,"fullyQualifiedName":"install","identUtf16":{"start":{"lineNumber":105,"utf16Col":0},"end":{"lineNumber":105,"utf16Col":7}},"extentUtf16":{"start":{"lineNumber":105,"utf16Col":0},"end":{"lineNumber":114,"utf16Col":1}}},{"name":"update","kind":"function","identStart":3135,"identEnd":3141,"extentStart":3135,"extentEnd":3545,"fullyQualifiedName":"update","identUtf16":{"start":{"lineNumber":116,"utf16Col":0},"end":{"lineNumber":116,"utf16Col":6}},"extentUtf16":{"start":{"lineNumber":116,"utf16Col":0},"end":{"lineNumber":130,"utf16Col":1}}},{"name":"uninstall","kind":"function","identStart":3547,"identEnd":3556,"extentStart":3547,"extentEnd":4115,"fullyQualifiedName":"uninstall","identUtf16":{"start":{"lineNumber":132,"utf16Col":0},"end":{"lineNumber":132,"utf16Col":9}},"extentUtf16":{"start":{"lineNumber":132,"utf16Col":0},"end":{"lineNumber":155,"utf16Col":1}}},{"name":"reset_user","kind":"function","identStart":4117,"identEnd":4127,"extentStart":4117,"extentEnd":4539,"fullyQualifiedName":"reset_user","identUtf16":{"start":{"lineNumber":157,"utf16Col":0},"end":{"lineNumber":157,"utf16Col":10}},"extentUtf16":{"start":{"lineNumber":157,"utf16Col":0},"end":{"lineNumber":168,"utf16Col":1}}},{"name":"reset_config","kind":"function","identStart":4541,"identEnd":4553,"extentStart":4541,"extentEnd":4950,"fullyQualifiedName":"reset_config","identUtf16":{"start":{"lineNumber":170,"utf16Col":0},"end":{"lineNumber":170,"utf16Col":12}},"extentUtf16":{"start":{"lineNumber":170,"utf16Col":0},"end":{"lineNumber":181,"utf16Col":1}}},{"name":"check_config","kind":"function","identStart":4952,"identEnd":4964,"extentStart":4952,"extentEnd":5153,"fullyQualifiedName":"check_config","identUtf16":{"start":{"lineNumber":183,"utf16Col":0},"end":{"lineNumber":183,"utf16Col":12}},"extentUtf16":{"start":{"lineNumber":183,"utf16Col":0},"end":{"lineNumber":190,"utf16Col":1}}},{"name":"set_port","kind":"function","identStart":5155,"identEnd":5163,"extentStart":5155,"extentEnd":5526,"fullyQualifiedName":"set_port","identUtf16":{"start":{"lineNumber":192,"utf16Col":0},"end":{"lineNumber":192,"utf16Col":8}},"extentUtf16":{"start":{"lineNumber":192,"utf16Col":0},"end":{"lineNumber":202,"utf16Col":1}}},{"name":"start","kind":"function","identStart":5528,"identEnd":5533,"extentStart":5528,"extentEnd":5943,"fullyQualifiedName":"start","identUtf16":{"start":{"lineNumber":204,"utf16Col":0},"end":{"lineNumber":204,"utf16Col":5}},"extentUtf16":{"start":{"lineNumber":204,"utf16Col":0},"end":{"lineNumber":223,"utf16Col":1}}},{"name":"stop","kind":"function","identStart":5945,"identEnd":5949,"extentStart":5945,"extentEnd":6355,"fullyQualifiedName":"stop","identUtf16":{"start":{"lineNumber":225,"utf16Col":0},"end":{"lineNumber":225,"utf16Col":4}},"extentUtf16":{"start":{"lineNumber":225,"utf16Col":0},"end":{"lineNumber":244,"utf16Col":1}}},{"name":"restart","kind":"function","identStart":6357,"identEnd":6364,"extentStart":6357,"extentEnd":6614,"fullyQualifiedName":"restart","identUtf16":{"start":{"lineNumber":246,"utf16Col":0},"end":{"lineNumber":246,"utf16Col":7}},"extentUtf16":{"start":{"lineNumber":246,"utf16Col":0},"end":{"lineNumber":258,"utf16Col":1}}},{"name":"status","kind":"function","identStart":6616,"identEnd":6622,"extentStart":6616,"extentEnd":6716,"fullyQualifiedName":"status","identUtf16":{"start":{"lineNumber":260,"utf16Col":0},"end":{"lineNumber":260,"utf16Col":6}},"extentUtf16":{"start":{"lineNumber":260,"utf16Col":0},"end":{"lineNumber":265,"utf16Col":1}}},{"name":"enable","kind":"function","identStart":6718,"identEnd":6724,"extentStart":6718,"extentEnd":6964,"fullyQualifiedName":"enable","identUtf16":{"start":{"lineNumber":267,"utf16Col":0},"end":{"lineNumber":267,"utf16Col":6}},"extentUtf16":{"start":{"lineNumber":267,"utf16Col":0},"end":{"lineNumber":278,"utf16Col":1}}},{"name":"disable","kind":"function","identStart":6966,"identEnd":6973,"extentStart":6966,"extentEnd":7216,"fullyQualifiedName":"disable","identUtf16":{"start":{"lineNumber":280,"utf16Col":0},"end":{"lineNumber":280,"utf16Col":7}},"extentUtf16":{"start":{"lineNumber":280,"utf16Col":0},"end":{"lineNumber":291,"utf16Col":1}}},{"name":"show_log","kind":"function","identStart":7218,"identEnd":7226,"extentStart":7218,"extentEnd":7339,"fullyQualifiedName":"show_log","identUtf16":{"start":{"lineNumber":293,"utf16Col":0},"end":{"lineNumber":293,"utf16Col":8}},"extentUtf16":{"start":{"lineNumber":293,"utf16Col":0},"end":{"lineNumber":298,"utf16Col":1}}},{"name":"migrate_v2_ui","kind":"function","identStart":7341,"identEnd":7354,"extentStart":7341,"extentEnd":7413,"fullyQualifiedName":"migrate_v2_ui","identUtf16":{"start":{"lineNumber":300,"utf16Col":0},"end":{"lineNumber":300,"utf16Col":13}},"extentUtf16":{"start":{"lineNumber":300,"utf16Col":0},"end":{"lineNumber":304,"utf16Col":1}}},{"name":"install_bbr","kind":"function","identStart":7415,"identEnd":7426,"extentStart":7415,"extentEnd":7598,"fullyQualifiedName":"install_bbr","identUtf16":{"start":{"lineNumber":306,"utf16Col":0},"end":{"lineNumber":306,"utf16Col":11}},"extentUtf16":{"start":{"lineNumber":306,"utf16Col":0},"end":{"lineNumber":311,"utf16Col":1}}},{"name":"update_shell","kind":"function","identStart":7600,"identEnd":7612,"extentStart":7600,"extentEnd":7990,"fullyQualifiedName":"update_shell","identUtf16":{"start":{"lineNumber":313,"utf16Col":0},"end":{"lineNumber":313,"utf16Col":12}},"extentUtf16":{"start":{"lineNumber":313,"utf16Col":0},"end":{"lineNumber":323,"utf16Col":1}}},{"name":"check_status","kind":"function","identStart":8039,"identEnd":8051,"extentStart":8039,"extentEnd":8333,"fullyQualifiedName":"check_status","identUtf16":{"start":{"lineNumber":326,"utf16Col":0},"end":{"lineNumber":326,"utf16Col":12}},"extentUtf16":{"start":{"lineNumber":326,"utf16Col":0},"end":{"lineNumber":336,"utf16Col":1}}},{"name":"check_enabled","kind":"function","identStart":8335,"identEnd":8348,"extentStart":8335,"extentEnd":8486,"fullyQualifiedName":"check_enabled","identUtf16":{"start":{"lineNumber":338,"utf16Col":0},"end":{"lineNumber":338,"utf16Col":13}},"extentUtf16":{"start":{"lineNumber":338,"utf16Col":0},"end":{"lineNumber":345,"utf16Col":1}}},{"name":"check_uninstall","kind":"function","identStart":8488,"identEnd":8503,"extentStart":8488,"extentEnd":8731,"fullyQualifiedName":"check_uninstall","identUtf16":{"start":{"lineNumber":347,"utf16Col":0},"end":{"lineNumber":347,"utf16Col":15}},"extentUtf16":{"start":{"lineNumber":347,"utf16Col":0},"end":{"lineNumber":359,"utf16Col":1}}},{"name":"check_install","kind":"function","identStart":8733,"identEnd":8746,"extentStart":8733,"extentEnd":8974,"fullyQualifiedName":"check_install","identUtf16":{"start":{"lineNumber":361,"utf16Col":0},"end":{"lineNumber":361,"utf16Col":13}},"extentUtf16":{"start":{"lineNumber":361,"utf16Col":0},"end":{"lineNumber":373,"utf16Col":1}}},{"name":"show_status","kind":"function","identStart":8976,"identEnd":8987,"extentStart":8976,"extentEnd":9333,"fullyQualifiedName":"show_status","identUtf16":{"start":{"lineNumber":375,"utf16Col":0},"end":{"lineNumber":375,"utf16Col":11}},"extentUtf16":{"start":{"lineNumber":375,"utf16Col":0},"end":{"lineNumber":391,"utf16Col":1}}},{"name":"show_enable_status","kind":"function","identStart":9335,"identEnd":9353,"extentStart":9335,"extentEnd":9545,"fullyQualifiedName":"show_enable_status","identUtf16":{"start":{"lineNumber":393,"utf16Col":0},"end":{"lineNumber":393,"utf16Col":18}},"extentUtf16":{"start":{"lineNumber":393,"utf16Col":0},"end":{"lineNumber":400,"utf16Col":1}}},{"name":"check_xray_status","kind":"function","identStart":9547,"identEnd":9564,"extentStart":9547,"extentEnd":9716,"fullyQualifiedName":"check_xray_status","identUtf16":{"start":{"lineNumber":402,"utf16Col":0},"end":{"lineNumber":402,"utf16Col":17}},"extentUtf16":{"start":{"lineNumber":402,"utf16Col":0},"end":{"lineNumber":409,"utf16Col":1}}},{"name":"show_xray_status","kind":"function","identStart":9718,"identEnd":9734,"extentStart":9718,"extentEnd":9913,"fullyQualifiedName":"show_xray_status","identUtf16":{"start":{"lineNumber":411,"utf16Col":0},"end":{"lineNumber":411,"utf16Col":16}},"extentUtf16":{"start":{"lineNumber":411,"utf16Col":0},"end":{"lineNumber":418,"utf16Col":1}}},{"name":"ssl_cert_issue","kind":"function","identStart":10060,"identEnd":10074,"extentStart":10060,"extentEnd":10881,"fullyQualifiedName":"ssl_cert_issue","identUtf16":{"start":{"lineNumber":423,"utf16Col":0},"end":{"lineNumber":423,"utf16Col":14}},"extentUtf16":{"start":{"lineNumber":423,"utf16Col":0},"end":{"lineNumber":444,"utf16Col":1}}},{"name":"install_acme","kind":"function","identStart":10883,"identEnd":10895,"extentStart":10883,"extentEnd":11114,"fullyQualifiedName":"install_acme","identUtf16":{"start":{"lineNumber":446,"utf16Col":0},"end":{"lineNumber":446,"utf16Col":12}},"extentUtf16":{"start":{"lineNumber":446,"utf16Col":0},"end":{"lineNumber":457,"utf16Col":1}}},{"name":"ssl_cert_issue_standalone","kind":"function","identStart":11144,"identEnd":11169,"extentStart":11144,"extentEnd":14002,"fullyQualifiedName":"ssl_cert_issue_standalone","identUtf16":{"start":{"lineNumber":460,"utf16Col":0},"end":{"lineNumber":460,"utf16Col":25}},"extentUtf16":{"start":{"lineNumber":460,"utf16Col":0},"end":{"lineNumber":543,"utf16Col":1}}},{"name":"ssl_cert_issue_by_cloudflare","kind":"function","identStart":14029,"identEnd":14057,"extentStart":14029,"extentEnd":17076,"fullyQualifiedName":"ssl_cert_issue_by_cloudflare","identUtf16":{"start":{"lineNumber":546,"utf16Col":0},"end":{"lineNumber":546,"utf16Col":28}},"extentUtf16":{"start":{"lineNumber":546,"utf16Col":0},"end":{"lineNumber":624,"utf16Col":1}}},{"name":"cron_jobs","kind":"function","identStart":17149,"identEnd":17158,"extentStart":17149,"extentEnd":17883,"fullyQualifiedName":"cron_jobs","identUtf16":{"start":{"lineNumber":627,"utf16Col":0},"end":{"lineNumber":627,"utf16Col":9}},"extentUtf16":{"start":{"lineNumber":627,"utf16Col":0},"end":{"lineNumber":658,"utf16Col":1}}},{"name":"update_geo","kind":"function","identStart":17902,"identEnd":17912,"extentStart":17902,"extentEnd":18651,"fullyQualifiedName":"update_geo","identUtf16":{"start":{"lineNumber":661,"utf16Col":0},"end":{"lineNumber":661,"utf16Col":10}},"extentUtf16":{"start":{"lineNumber":661,"utf16Col":0},"end":{"lineNumber":684,"utf16Col":1}}},{"name":"enable_auto_update_geo","kind":"function","identStart":18653,"identEnd":18675,"extentStart":18653,"extentEnd":18954,"fullyQualifiedName":"enable_auto_update_geo","identUtf16":{"start":{"lineNumber":686,"utf16Col":0},"end":{"lineNumber":686,"utf16Col":22}},"extentUtf16":{"start":{"lineNumber":686,"utf16Col":0},"end":{"lineNumber":693,"utf16Col":1}}},{"name":"disable_auto_update_geo","kind":"function","identStart":18956,"identEnd":18979,"extentStart":18956,"extentEnd":19206,"fullyQualifiedName":"disable_auto_update_geo","identUtf16":{"start":{"lineNumber":695,"utf16Col":0},"end":{"lineNumber":695,"utf16Col":23}},"extentUtf16":{"start":{"lineNumber":695,"utf16Col":0},"end":{"lineNumber":702,"utf16Col":1}}},{"name":"clear_log","kind":"function","identStart":19304,"identEnd":19313,"extentStart":19304,"extentEnd":20169,"fullyQualifiedName":"clear_log","identUtf16":{"start":{"lineNumber":706,"utf16Col":0},"end":{"lineNumber":706,"utf16Col":9}},"extentUtf16":{"start":{"lineNumber":706,"utf16Col":0},"end":{"lineNumber":732,"utf16Col":1}}},{"name":"enable_auto_clear_log","kind":"function","identStart":20215,"identEnd":20236,"extentStart":20215,"extentEnd":21459,"fullyQualifiedName":"enable_auto_clear_log","identUtf16":{"start":{"lineNumber":735,"utf16Col":0},"end":{"lineNumber":735,"utf16Col":21}},"extentUtf16":{"start":{"lineNumber":735,"utf16Col":0},"end":{"lineNumber":764,"utf16Col":1}}},{"name":"disable_auto_clear_log","kind":"function","identStart":21485,"identEnd":21507,"extentStart":21485,"extentEnd":21728,"fullyQualifiedName":"disable_auto_clear_log","identUtf16":{"start":{"lineNumber":767,"utf16Col":0},"end":{"lineNumber":767,"utf16Col":22}},"extentUtf16":{"start":{"lineNumber":767,"utf16Col":0},"end":{"lineNumber":774,"utf16Col":1}}},{"name":"show_usage","kind":"function","identStart":21730,"identEnd":21740,"extentStart":21730,"extentEnd":22560,"fullyQualifiedName":"show_usage","identUtf16":{"start":{"lineNumber":776,"utf16Col":0},"end":{"lineNumber":776,"utf16Col":10}},"extentUtf16":{"start":{"lineNumber":776,"utf16Col":0},"end":{"lineNumber":793,"utf16Col":1}}},{"name":"show_menu","kind":"function","identStart":22562,"identEnd":22571,"extentStart":22562,"extentEnd":24680,"fullyQualifiedName":"show_menu","identUtf16":{"start":{"lineNumber":795,"utf16Col":0},"end":{"lineNumber":795,"utf16Col":9}},"extentUtf16":{"start":{"lineNumber":795,"utf16Col":0},"end":{"lineNumber":884,"utf16Col":1}}}]}},"copilotInfo":{"documentationUrl":"https://docs.github.com/copilot/overview-of-github-copilot/about-github-copilot-for-individuals","notices":{"codeViewPopover":{"dismissed":false,"dismissPath":"/settings/dismiss-notice/code_view_copilot_popover"}},"userAccess":{"accessAllowed":false,"hasSubscriptionEnded":false,"orgHasCFBAccess":false,"userHasCFIAccess":false,"userHasOrgs":false,"userIsOrgAdmin":false,"userIsOrgMember":false,"business":null,"featureRequestInfo":null}},"csrf_tokens":{"/FranzKafkaYu/x-ui/branches":{"post":"DJjOEIxUzyxedW794lEUmFLlZtX8iY_C8-AJWxu--bw5-qq-6E8BBaxsDe95t23VNT2f5Vx5JG5RUXRPAoth3A"},"/repos/preferences":{"post":"5o2y4LQCNc7NZwIRM-9T27WelvTErBd-_FJDc30XXz-AOdik77fWy2oLTyN9oJ0ePsj_MPm-r7ZQPEDdvA8tGg"}}},"title":"x-ui/x-ui_en.sh at main · FranzKafkaYu/x-ui"}
+#!/bin/bash
+
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+plain='\033[0m'
+
+#consts for log check and clear,unit:M
+declare -r DEFAULT_LOG_FILE_DELETE_TRIGGER=35
+
+# consts for geo update
+PATH_FOR_GEO_IP='/usr/local/x-ui/bin/geoip.dat'
+PATH_FOR_CONFIG='/usr/local/x-ui/bin/config.json'
+PATH_FOR_GEO_SITE='/usr/local/x-ui/bin/geosite.dat'
+URL_FOR_GEO_IP='https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat'
+URL_FOR_GEO_SITE='https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat'
+
+#Add some basic function here
+function LOGD() {
+    echo -e "${yellow}[DEG] $* ${plain}"
+}
+
+function LOGE() {
+    echo -e "${red}[ERR] $* ${plain}"
+}
+
+function LOGI() {
+    echo -e "${green}[INF] $* ${plain}"
+}
+# check root
+[[ $EUID -ne 0 ]] && LOGE "${red}fatal error:please run this script with root privilege${plain}\n" && exit 1
+
+# check os
+if [[ -f /etc/redhat-release ]]; then
+    release="centos"
+elif cat /etc/issue | grep -Eqi "debian"; then
+    release="debian"
+elif cat /etc/issue | grep -Eqi "ubuntu"; then
+    release="ubuntu"
+elif cat /etc/issue | grep -Eqi "centos|red hat|redhat"; then
+    release="centos"
+elif cat /proc/version | grep -Eqi "debian"; then
+    release="debian"
+elif cat /proc/version | grep -Eqi "ubuntu"; then
+    release="ubuntu"
+elif cat /proc/version | grep -Eqi "centos|red hat|redhat"; then
+    release="centos"
+else
+    LOGE "check system os failed,please contact with author!\n" && exit 1
+fi
+
+os_version=""
+
+# os version
+if [[ -f /etc/os-release ]]; then
+    os_version=$(awk -F'[= ."]' '/VERSION_ID/{print $3}' /etc/os-release)
+fi
+if [[ -z "$os_version" && -f /etc/lsb-release ]]; then
+    os_version=$(awk -F'[= ."]+' '/DISTRIB_RELEASE/{print $2}' /etc/lsb-release)
+fi
+
+if [[ x"${release}" == x"centos" ]]; then
+    if [[ ${os_version} -le 6 ]]; then
+        LOGE "${red}please use CentOS 7 or higher version${plain}\n" && exit 1
+    fi
+elif [[ x"${release}" == x"ubuntu" ]]; then
+    if [[ ${os_version} -lt 16 ]]; then
+        LOGE "${red}please use Ubuntu 16 or higher version${plain}\n" && exit 1
+    fi
+elif [[ x"${release}" == x"debian" ]]; then
+    if [[ ${os_version} -lt 8 ]]; then
+        LOGE "${red}please use Debian 8 or higher version${plain}\n" && exit 1
+    fi
+fi
+
+confirm() {
+    if [[ $# > 1 ]]; then
+        echo && read -p "$1 [default:$2]: " temp
+        if [[ x"${temp}" == x"" ]]; then
+            temp=$2
+        fi
+    else
+        read -p "$1 [y/n]: " temp
+    fi
+    if [[ x"${temp}" == x"y" || x"${temp}" == x"Y" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+confirm_restart() {
+    confirm "confirm to restart x-ui,xray service will be restart" "y"
+    if [[ $? == 0 ]]; then
+        restart
+    else
+        show_menu
+    fi
+}
+
+before_show_menu() {
+    echo && echo -n -e "${yellow}enter to return to the control menu: ${plain}" && read temp
+    show_menu
+}
+
+install() {
+    bash <(curl -Ls https://raw.githubusercontent.com/97668589/x-ui/master/install_en.sh)
+    if [[ $? == 0 ]]; then
+        if [[ $# == 0 ]]; then
+            start
+        else
+            start 0
+        fi
+    fi
+}
+
+update() {
+    confirm "will upgrade to the latest,continue?" "n"
+    if [[ $? != 0 ]]; then
+        LOGE "cancelled..."
+        if [[ $# == 0 ]]; then
+            before_show_menu
+        fi
+        return 0
+    fi
+    bash <(curl -Ls https://raw.githubusercontent.com/97668589/x-ui/master/install_en.sh)
+    if [[ $? == 0 ]]; then
+        LOGI "upgrade finished,restart completed"
+        exit 0
+    fi
+}
+
+uninstall() {
+    confirm "sure you want to uninstall x-ui?" "n"
+    if [[ $? != 0 ]]; then
+        if [[ $# == 0 ]]; then
+            show_menu
+        fi
+        return 0
+    fi
+    systemctl stop x-ui
+    systemctl disable x-ui
+    rm /etc/systemd/system/x-ui.service -f
+    systemctl daemon-reload
+    systemctl reset-failed
+    rm /etc/x-ui/ -rf
+    rm /usr/local/x-ui/ -rf
+
+    echo ""
+    echo -e "uninstall x-ui succeed,you can delete this script by ${green}rm /usr/bin/x-ui -f${plain}"
+    echo ""
+
+    if [[ $# == 0 ]]; then
+        before_show_menu
+    fi
+}
+
+reset_user() {
+    confirm "are you sure you want to reset the username and password to ${green}admin${plain} ?" "n"
+    if [[ $? != 0 ]]; then
+        if [[ $# == 0 ]]; then
+            show_menu
+        fi
+        return 0
+    fi
+    /usr/local/x-ui/x-ui setting -username admin -password admin
+    echo -e "your username and password are reset to ${green}admin${plain},restart x-ui to take effect"
+    confirm_restart
+}
+
+reset_config() {
+    confirm "are you sure you want to reset all settings,user data will not be lost" "n"
+    if [[ $? != 0 ]]; then
+        if [[ $# == 0 ]]; then
+            show_menu
+        fi
+        return 0
+    fi
+    /usr/local/x-ui/x-ui setting -reset
+    echo -e "all settings are reset to default,please restart x-ui,and use default port ${green}54321${plain} to access panel"
+    confirm_restart
+}
+
+check_config() {
+    info=$(/usr/local/x-ui/x-ui setting -show true)
+    if [[ $? != 0 ]]; then
+        LOGE "get current settings error,please check logs"
+        show_menu
+    fi
+    LOGI "${info}"
+}
+
+set_port() {
+    echo && echo -n -e "please set a port[1-65535]: " && read port
+    if [[ -z "${port}" ]]; then
+        LOGD "cancelled..."
+        before_show_menu
+    else
+        /usr/local/x-ui/x-ui setting -port ${port}
+        echo -e "set port done,please restart x-ui,and use this new port ${green}${port}${plain} to access panel"
+        confirm_restart
+    fi
+}
+
+start() {
+    check_status
+    if [[ $? == 0 ]]; then
+        echo ""
+        LOGI "x-ui is running,no need to start agin"
+    else
+        systemctl start x-ui
+        sleep 2
+        check_status
+        if [[ $? == 0 ]]; then
+            LOGI "start x-ui  succeed"
+        else
+            LOGE "start x-ui failed,please check logs"
+        fi
+    fi
+
+    if [[ $# == 0 ]]; then
+        before_show_menu
+    fi
+}
+
+stop() {
+    check_status
+    if [[ $? == 1 ]]; then
+        echo ""
+        LOGI "x-ui is stopped,no need to stop again"
+    else
+        systemctl stop x-ui
+        sleep 2
+        check_status
+        if [[ $? == 1 ]]; then
+            LOGI "stop x-ui succeed"
+        else
+            LOGE "stop x-ui failed,please check logs"
+        fi
+    fi
+
+    if [[ $# == 0 ]]; then
+        before_show_menu
+    fi
+}
+
+restart() {
+    systemctl restart x-ui
+    sleep 2
+    check_status
+    if [[ $? == 0 ]]; then
+        LOGI "restart x-ui succeed"
+    else
+        LOGE "stop x-ui failed,please check logs"
+    fi
+    if [[ $# == 0 ]]; then
+        before_show_menu
+    fi
+}
+
+status() {
+    systemctl status x-ui -l
+    if [[ $# == 0 ]]; then
+        before_show_menu
+    fi
+}
+
+enable() {
+    systemctl enable x-ui
+    if [[ $? == 0 ]]; then
+        LOGI "enable x-ui on system startup succeed"
+    else
+        LOGE "enable x-ui on system startup failed"
+    fi
+
+    if [[ $# == 0 ]]; then
+        before_show_menu
+    fi
+}
+
+disable() {
+    systemctl disable x-ui
+    if [[ $? == 0 ]]; then
+        LOGI "disable x-ui on system startup succeed"
+    else
+        LOGE "disable x-ui on system startup failed"
+    fi
+
+    if [[ $# == 0 ]]; then
+        before_show_menu
+    fi
+}
+
+show_log() {
+    journalctl -u x-ui.service -e --no-pager -f
+    if [[ $# == 0 ]]; then
+        before_show_menu
+    fi
+}
+
+migrate_v2_ui() {
+    /usr/local/x-ui/x-ui v2-ui
+
+    before_show_menu
+}
+
+install_bbr() {
+    # temporary workaround for installing bbr
+    bash <(curl -L -s https://raw.githubusercontent.com/teddysun/across/master/bbr.sh)
+    echo ""
+    before_show_menu
+}
+
+update_shell() {
+    wget -O /usr/bin/x-ui -N --no-check-certificate https://github.com/97668589/x-ui/raw/master/x-ui_en.sh
+    if [[ $? != 0 ]]; then
+        echo ""
+        LOGE "update shell script failed,please check whether your server can access github"
+        before_show_menu
+    else
+        chmod +x /usr/bin/x-ui
+        LOGI "update shell script succeed" && exit 0
+    fi
+}
+
+# 0: running, 1: not running, 2: not installed
+check_status() {
+    if [[ ! -f /etc/systemd/system/x-ui.service ]]; then
+        return 2
+    fi
+    temp=$(systemctl status x-ui | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
+    if [[ x"${temp}" == x"running" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+check_enabled() {
+    temp=$(systemctl is-enabled x-ui)
+    if [[ x"${temp}" == x"enabled" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+check_uninstall() {
+    check_status
+    if [[ $? != 2 ]]; then
+        echo ""
+        LOGE "x-ui is installed already"
+        if [[ $# == 0 ]]; then
+            before_show_menu
+        fi
+        return 1
+    else
+        return 0
+    fi
+}
+
+check_install() {
+    check_status
+    if [[ $? == 2 ]]; then
+        echo ""
+        LOGE "please install x-ui first"
+        if [[ $# == 0 ]]; then
+            before_show_menu
+        fi
+        return 1
+    else
+        return 0
+    fi
+}
+
+show_status() {
+    check_status
+    case $? in
+    0)
+        echo -e "x-ui status: ${green}running${plain}"
+        show_enable_status
+        ;;
+    1)
+        echo -e "x-ui status: ${yellow}stopped${plain}"
+        show_enable_status
+        ;;
+    2)
+        echo -e "x-ui status: ${red}not installed${plain}"
+        ;;
+    esac
+    show_xray_status
+}
+
+show_enable_status() {
+    check_enabled
+    if [[ $? == 0 ]]; then
+        echo -e "enable on system startup: ${green}yes${plain}"
+    else
+        echo -e "enable on system startup: ${red}no${plain}"
+    fi
+}
+
+check_xray_status() {
+    count=$(ps -ef | grep "xray-linux" | grep -v "grep" | wc -l)
+    if [[ count -ne 0 ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+show_xray_status() {
+    check_xray_status
+    if [[ $? == 0 ]]; then
+        echo -e "xray status: ${green}running${plain}"
+    else
+        echo -e "xray status: ${red}stopped${plain}"
+    fi
+}
+
+#this will be an entrance for ssl cert issue
+#here we can provide two different methods to issue cert
+#first.standalone mode second.DNS API mode
+ssl_cert_issue() {
+    local method=""
+    echo -E ""
+    LOGD "********Usage********"
+    LOGI "this shell script will use acme to help issue certs."
+    LOGI "here we provide two methods for issuing certs:"
+    LOGI "method 1:acme standalone mode,need to keep port:80 open"
+    LOGI "method 2:acme DNS API mode,need provide Cloudflare Global API Key"
+    LOGI "recommend method 2 first,if it fails,you can try method 1."
+    LOGI "certs will be installed in /root/cert directory"
+    read -p "please choose which method do you want,type 1 or 2": method
+    LOGI "you choosed method:${method}"
+
+    if [ "${method}" == "1" ]; then
+        ssl_cert_issue_standalone
+    elif [ "${method}" == "2" ]; then
+        ssl_cert_issue_by_cloudflare
+    else
+        LOGE "invalid input,please check it..."
+        exit 1
+    fi
+}
+
+install_acme() {
+    cd ~
+    LOGI "install acme..."
+    curl https://get.acme.sh | sh
+    if [ $? -ne 0 ]; then
+        LOGE "install acme failed"
+        return 1
+    else
+        LOGI "install acme succeed"
+    fi
+    return 0
+}
+
+#method for standalone mode
+ssl_cert_issue_standalone() {
+    #check for acme.sh first
+    if ! command -v ~/.acme.sh/acme.sh &>/dev/null; then
+        echo "acme.sh could not be found. we will install it"
+        install_acme
+        if [ $? -ne 0 ]; then
+            LOGE "install acme failed, please check logs"
+            exit 1
+        fi
+    fi
+    #install socat second
+    if [[ x"${release}" == x"centos" ]]; then
+        yum install socat -y
+    else
+        apt install socat -y
+    fi
+    if [ $? -ne 0 ]; then
+        LOGE "install socat failed, please check logs"
+        exit 1
+    else
+        LOGI "install socat succeed..."
+    fi
+    #creat a directory for install cert
+    certPath=/root/cert
+    if [ ! -d "$certPath" ]; then
+        mkdir $certPath
+    fi
+    #get the domain here,and we need verify it
+    local domain=""
+    read -p "please input your domain:" domain
+    LOGD "your domain is:${domain},check it..."
+    #here we need to judge whether there exists cert already
+    local currentCert=$(~/.acme.sh/acme.sh --list | grep ${domain} | wc -l)
+    if [ ${currentCert} -ne 0 ]; then
+        local certInfo=$(~/.acme.sh/acme.sh --list)
+        LOGE "system already have certs here,can not issue again,current certs details:"
+        LOGI "$certInfo"
+        exit 1
+    else
+        LOGI "your domain is ready for issuing cert now..."
+    fi
+    #get needed port here
+    local WebPort=80
+    read -p "please choose which port do you use,default will be 80 port:" WebPort
+    if [[ ${WebPort} -gt 65535 || ${WebPort} -lt 1 ]]; then
+        LOGE "your input ${WebPort} is invalid,will use default port"
+    fi
+    LOGI "will use port:${WebPort} to issue certs,please make sure this port is open..."
+    #NOTE:This should be handled by user
+    #open the port and kill the occupied progress
+    ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+    ~/.acme.sh/acme.sh --issue -d ${domain} --standalone --httpport ${WebPort}
+    if [ $? -ne 0 ]; then
+        LOGE "issue certs failed,please check logs"
+        rm -rf ~/.acme.sh/${domain}
+        exit 1
+    else
+        LOGE "issue certs succeed,installing certs..."
+    fi
+    #install cert
+    ~/.acme.sh/acme.sh --installcert -d ${domain} --ca-file /root/cert/ca.cer \
+        --cert-file /root/cert/${domain}.cer --key-file /root/cert/${domain}.key \
+        --fullchain-file /root/cert/fullchain.cer
+
+    if [ $? -ne 0 ]; then
+        LOGE "install certs failed,exit"
+        rm -rf ~/.acme.sh/${domain}
+        exit 1
+    else
+        LOGI "install certs succeed,enable auto renew..."
+    fi
+    ~/.acme.sh/acme.sh --upgrade --auto-upgrade
+    if [ $? -ne 0 ]; then
+        LOGE "auto renew failed,certs details:"
+        ls -lah cert
+        chmod 755 $certPath
+        exit 1
+    else
+        LOGI "auto renew succeed,certs details:"
+        ls -lah cert
+        chmod 755 $certPath
+    fi
+
+}
+
+#method for DNS API mode
+ssl_cert_issue_by_cloudflare() {
+    echo -E ""
+    LOGD "******Preconditions******"
+    LOGI "1.need Cloudflare account associated email"
+    LOGI "2.need Cloudflare Global API Key"
+    LOGI "3.your domain use Cloudflare as resolver"
+    confirm "I have confirmed all these info above[y/n]" "y"
+    if [ $? -eq 0 ]; then
+        install_acme
+        if [ $? -ne 0 ]; then
+            LOGE "install acme failed,please check logs"
+            exit 1
+        fi
+        CF_Domain=""
+        CF_GlobalKey=""
+        CF_AccountEmail=""
+        certPath=/root/cert
+        if [ ! -d "$certPath" ]; then
+            mkdir $certPath
+        fi
+        LOGD "please input your domain:"
+        read -p "Input your domain here:" CF_Domain
+        LOGD "your domain is:${CF_Domain},check it..."
+        #here we need to judge whether there exists cert already
+        local currentCert=$(~/.acme.sh/acme.sh --list | grep ${CF_Domain} | wc -l)
+        if [ ${currentCert} -ne 0 ]; then
+            local certInfo=$(~/.acme.sh/acme.sh --list)
+            LOGE "system already have certs here,can not issue again,current certs details:"
+            LOGI "$certInfo"
+            exit 1
+        else
+            LOGI "your domain is ready for issuing cert now..."
+        fi
+        LOGD "please inout your cloudflare global API key:"
+        read -p "Input your key here:" CF_GlobalKey
+        LOGD "your cloudflare global API key is:${CF_GlobalKey}"
+        LOGD "please input your cloudflare account email:"
+        read -p "Input your email here:" CF_AccountEmail
+        LOGD "your cloudflare account email:${CF_AccountEmail}"
+        ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+        if [ $? -ne 0 ]; then
+            LOGE "change the default CA to Lets'Encrypt failed,exit"
+            exit 1
+        fi
+        export CF_Key="${CF_GlobalKey}"
+        export CF_Email=${CF_AccountEmail}
+        ~/.acme.sh/acme.sh --issue --dns dns_cf -d ${CF_Domain} -d *.${CF_Domain} --log
+        if [ $? -ne 0 ]; then
+            LOGE "issue cert failed,exit"
+            rm -rf ~/.acme.sh/${CF_Domain}
+            exit 1
+        else
+            LOGI "issue cert succeed,installing..."
+        fi
+        ~/.acme.sh/acme.sh --installcert -d ${CF_Domain} -d *.${CF_Domain} --ca-file /root/cert/ca.cer \
+            --cert-file /root/cert/${CF_Domain}.cer --key-file /root/cert/${CF_Domain}.key \
+            --fullchain-file /root/cert/fullchain.cer
+        if [ $? -ne 0 ]; then
+            LOGE "install cert failed,exit"
+            rm -rf ~/.acme.sh/${CF_Domain}
+            exit 1
+        else
+            LOGI "install cert succeed,enable auto renew..."
+        fi
+        ~/.acme.sh/acme.sh --upgrade --auto-upgrade
+        if [ $? -ne 0 ]; then
+            LOGE "enable auto renew failed,exit"
+            ls -lah cert
+            chmod 755 $certPath
+            exit 1
+        else
+            LOGI "enable auto renew succeed,cert details:"
+            ls -lah cert
+            chmod 755 $certPath
+        fi
+    else
+        show_menu
+    fi
+}
+
+#add for cron jobs,including sync geo data,check logs and restart x-ui
+cron_jobs() {
+    clear
+    echo -e "
+  ${green}x-ui cron jobs${plain}
+  ${green}0.${plain}  return main menu
+  ${green}1.${plain}  enable automatically update geo data
+  ${green}2.${plain}  disable automatically update geo data 
+  ${green}3.${plain}  enable automatically clear xray log
+  ${green}4.${plain}  disable automatically clear xray log
+  "
+    echo && read -p "plz input your choice [0-4]: " num
+    case "${num}" in
+    0)
+        show_menu
+        ;;
+    1)
+        enable_auto_update_geo
+        ;;
+    2)
+        disable_auto_update_geo
+        ;;
+    3)
+        enable_auto_clear_log
+        ;;
+    4)
+        disable_auto_clear_log
+        ;;
+    *)
+        LOGE "plz input a valid choice [0-4]"
+        ;;
+    esac
+}
+
+#update geo data
+update_geo() {
+    #back up first
+    mv ${PATH_FOR_GEO_IP} ${PATH_FOR_GEO_IP}.bak
+    #update data
+    curl -s -L -o ${PATH_FOR_GEO_IP} ${URL_FOR_GEO_IP}
+    if [[ $? -ne 0 ]]; then
+        echo "update geoip.dat failed"
+        mv ${PATH_FOR_GEO_IP}.bak ${PATH_FOR_GEO_IP}
+    else
+        echo "update geoip.dat succeed"
+        rm -f ${PATH_FOR_GEO_IP}.bak
+    fi
+    mv ${PATH_FOR_GEO_SITE} ${PATH_FOR_GEO_SITE}.bak
+    curl -s -L -o ${PATH_FOR_GEO_SITE} ${URL_FOR_GEO_SITE}
+    if [[ $? -ne 0 ]]; then
+        echo "update geosite.dat failed"
+        mv ${PATH_FOR_GEO_SITE}.bak ${PATH_FOR_GEO_SITE}
+    else
+        echo "update geosite.dat succeed"
+        rm -f ${PATH_FOR_GEO_SITE}.bak
+    fi
+    #restart x-ui
+    systemctl restart x-ui
+}
+
+enable_auto_update_geo() {
+    LOGI "enable automatically update geo data..."
+    crontab -l >/tmp/crontabTask.tmp
+    echo "00 4 */2 * * x-ui geo > /dev/null" >>/tmp/crontabTask.tmp
+    crontab /tmp/crontabTask.tmp
+    rm /tmp/crontabTask.tmp
+    LOGI "enable automatically update geo data succeed"
+}
+
+disable_auto_update_geo() {
+    crontab -l | grep -v "x-ui geo" | crontab -
+    if [[ $? -ne 0 ]]; then
+        LOGI "cancel x-ui automatically update geo data failed"
+    else
+        LOGI "cancel x-ui automatically update geo data succeed"
+    fi
+}
+
+#clear xray log,need enable log in config template
+#here we need input an absolute path for log
+clear_log() {
+    LOGI "clear xray logs..."
+    local filePath=''
+    if [[ $# -gt 0 ]]; then
+        filePath=$1
+    else
+        LOGE "invalid file path,will exit"
+        exit 1
+    fi
+    LOGI "log file:${filePath}"
+    if [[ ! -f ${filePath} ]]; then
+        LOGE "clear xray log failed,${filePath} didn't exist,plz check it"
+        exit 1
+    fi
+    fileSize=$(ls -la ${filePath} --block-size=M | awk '{print $5}' | awk -F 'M' '{print$1}')
+    if [[ ${fileSize} -gt ${DEFAULT_LOG_FILE_DELETE_TRIGGER} ]]; then
+        rm $1
+        if [[ $? -ne 0 ]]; then
+            LOGE "clear xray log :${filePath} failed"
+        else
+            LOGI "clear xray log :${filePath} succeed"
+            systemctl restart x-ui
+        fi
+    else
+        LOGI "current size of xray log is:${fileSize}M,smaller that ${DEFAULT_LOG_FILE_DELETE_TRIGGER}M,won't clear"
+    fi
+}
+
+#enable auto delete log，need file path as
+enable_auto_clear_log() {
+    LOGI "enable automatically clear xray logs..."
+    local accessfilePath=''
+    local errorfilePath=''
+    accessfilePath=$(cat ${PATH_FOR_CONFIG} | jq .log.access | tr -d '"')
+    errorfilePath=$(cat ${PATH_FOR_CONFIG} | jq .log.error | tr -d '"')
+    if [[ ! -n ${accessfilePath} && ! -n ${errorfilePath} ]]; then
+        LOGI "current configuration didn't set valid logs,will exited"
+        exit 1
+    fi
+    if [[ -f ${accessfilePath} ]]; then
+        crontab -l >/tmp/crontabTask.tmp
+        echo "30 4 */2 * * x-ui clear ${accessfilePath} > /dev/null" >>/tmp/crontabTask.tmp
+        crontab /tmp/crontabTask.tmp
+        rm /tmp/crontabTask.tmp
+        LOGI "enable automatically clear xray log:${accessfilePath} succeed"
+    else
+        LOGE "accesslog didn't existed,won't automatically clear it"
+    fi
+
+    if [[ -f ${errorfilePath} ]]; then
+        crontab -l >/tmp/crontabTask.tmp
+        echo "30 4 */2 * * x-ui clear ${errorfilePath} > /dev/null" >>/tmp/crontabTask.tmp
+        crontab /tmp/crontabTask.tmp
+        rm /tmp/crontabTask.tmp
+        LOGI "enable automatically clear xray log:${errorfilePath} succeed"
+    else
+        LOGE "errorlog didn't existed,won't automatically clear it"
+    fi
+}
+
+#disable auto dlete log
+disable_auto_clear_log() {
+    crontab -l | grep -v "x-ui clear" | crontab -
+    if [[ $? -ne 0 ]]; then
+        LOGI "cancel  automatically clear xray logs failed"
+    else
+        LOGI "cancel  automatically clear xray logs succeed"
+    fi
+}
+
+show_usage() {
+    echo "x-ui control menu usages: "
+    echo "------------------------------------------"
+    echo -e "x-ui              - Enter control menu"
+    echo -e "x-ui start        - Start x-ui "
+    echo -e "x-ui stop         - Stop  x-ui "
+    echo -e "x-ui restart      - Restart x-ui "
+    echo -e "x-ui status       - Show x-ui status"
+    echo -e "x-ui enable       - Enable x-ui on system startup"
+    echo -e "x-ui disable      - Disable x-ui on system startup"
+    echo -e "x-ui log          - Check x-ui logs"
+    echo -e "x-ui update       - Update x-ui "
+    echo -e "x-ui install      - Install x-ui "
+    echo -e "x-ui uninstall    - Uninstall x-ui "
+    echo "x-ui geo             - Update x-ui geo "
+    echo "x-ui cron            - Cron x-ui jobs"
+    echo "------------------------------------------"
+}
+
+show_menu() {
+    echo -e "
+  ${green}x-ui control menu${plain}
+  ${green}0.${plain} exit
+————————————————
+  ${green}1.${plain} install   x-ui
+  ${green}2.${plain} update    x-ui
+  ${green}3.${plain} uninstall x-ui
+————————————————
+  ${green}4.${plain} reset username
+  ${green}5.${plain} reset panel
+  ${green}6.${plain} reset panel port
+  ${green}7.${plain} check panel info
+————————————————
+  ${green}8.${plain} start x-ui
+  ${green}9.${plain} stop  x-ui
+  ${green}10.${plain} restart x-ui
+  ${green}11.${plain} check x-ui status
+  ${green}12.${plain} check x-ui logs
+————————————————
+  ${green}13.${plain} enable  x-ui on system startup
+  ${green}14.${plain} disable x-ui on system startup
+————————————————
+  ${green}15.${plain} enable bbr 
+  ${green}16.${plain} issuse certs
+  ${green}17.${plain} x-ui cron jobs
+ "
+    show_status
+    echo && read -p "please input a legal number[0-16],input 7 for checking login info:" num
+
+    case "${num}" in
+    0)
+        exit 0
+        ;;
+    1)
+        check_uninstall && install
+        ;;
+    2)
+        check_install && update
+        ;;
+    3)
+        check_install && uninstall
+        ;;
+    4)
+        check_install && reset_user
+        ;;
+    5)
+        check_install && reset_config
+        ;;
+    6)
+        check_install && set_port
+        ;;
+    7)
+        check_install && check_config
+        ;;
+    8)
+        check_install && start
+        ;;
+    9)
+        check_install && stop
+        ;;
+    10)
+        check_install && restart
+        ;;
+    11)
+        check_install && status
+        ;;
+    12)
+        check_install && show_log
+        ;;
+    13)
+        check_install && enable
+        ;;
+    14)
+        check_install && disable
+        ;;
+    15)
+        install_bbr
+        ;;
+    16)
+        ssl_cert_issue
+        ;;
+    17)
+        check_install && cron_jobs
+        ;;
+    *)
+        LOGE "please input a legal number[0-17],input 7 for checking login info"
+        ;;
+    esac
+}
+
+if [[ $# > 0 ]]; then
+    case $1 in
+    "start")
+        check_install 0 && start 0
+        ;;
+    "stop")
+        check_install 0 && stop 0
+        ;;
+    "restart")
+        check_install 0 && restart 0
+        ;;
+    "status")
+        check_install 0 && status 0
+        ;;
+    "enable")
+        check_install 0 && enable 0
+        ;;
+    "disable")
+        check_install 0 && disable 0
+        ;;
+    "log")
+        check_install 0 && show_log 0
+        ;;
+    "v2-ui")
+        check_install 0 && migrate_v2_ui 0
+        ;;
+    "update")
+        check_install 0 && update 0
+        ;;
+    "install")
+        check_uninstall 0 && install 0
+        ;;
+    "uninstall")
+        check_install 0 && uninstall 0
+        ;;
+    "geo")
+        check_install 0 && update_geo
+        ;;
+    "clear")
+        check_install 0 && clear_log $2
+        ;;
+    "cron")
+        check_install && cron_jobs
+        ;;
+    *) show_usage ;;
+    esac
+else
+    show_menu
+fi
